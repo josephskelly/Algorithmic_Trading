@@ -65,7 +65,7 @@ Trade amount scales linearly with both the % price change and total deposited ca
 
 2x leveraged sector and bond ETFs (see `ETFs.csv` for full list):
 
-| Symbol | Sector |
+| Symbol | Description |
 |---|---|
 | DIG | Energy |
 | LTL | Communication Services |
