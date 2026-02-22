@@ -1,15 +1,12 @@
-ETFs
-DIG
-LTL
-ROM
-RXL
-UBT
-UCC
-UGE
-UJB
-UPW
-URE
-UST
-UXI
-UYG
-UYM
+Symbol,Description
+DIG,Energy
+LTL,Communication Services
+ROM,Technology
+RXL,Health Care
+UCC,Consumer Discretionary
+UGE,Consumer Staples
+UPW,Utilities
+URE,Real Estate
+UXI,Industrials
+UYG,Financials
+UYM,Materials
