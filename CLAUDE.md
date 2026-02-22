@@ -29,7 +29,7 @@ Update the CLAUDE.md whenever relevant.
 - [x] Fix CLAUDE.md intro — still says "sector and bond ETFs" but bond ETFs (UBT, UJB, UST) were removed. **Resolved: removed "and bond" from all descriptions.**
 - [x] Define "Total Deposited Cash" — clarify whether this is the fixed initial deposit amount or the current account net liquidation value; affects every trade calculation. **Resolved: use net liquidation value of the account queried live from IB at execution time.**
 - [ ] Add market open / holiday check — scheduler must confirm it's an actual trading day before triggering
-- [ ] Add cap on trade size — no upper limit currently; a large % move on a large account could generate an unexpectedly large order
+- [x] Add cap on trade size — no upper limit currently; a large % move on a large account could generate an unexpectedly large order. **Resolved: no cap on trade size.**
 - [ ] Add daily execution guard — prevent the strategy from firing more than once per trading day if the script restarts
 - [x] Clarify fractional shares handling — IB supports fractional shares for some ETFs but not all; define behavior for unsupported ETFs. **Resolved: all listed ETFs support fractional shares; skip trade if an ETF does not support fractional shares.**
 - [ ] Clarify sell sizing — selling a dollar amount requires converting to shares at current price; define how to handle rounding to whole shares and any residual
