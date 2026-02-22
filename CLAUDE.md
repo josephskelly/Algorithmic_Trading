@@ -5,7 +5,10 @@ Using ibapi and a paper trading account, we will execute our algorithmic trading
 
 - Cash account. No margin.
 - List of ETFs available for trading in ETFs.csv.
-- At 5 minutes before close every trading day, execute strategy:
+- At 5 minutes before close every trading day, execute strategy. Before executing:
+    - Check if the market is open that day (skip if holiday).
+    - Check the actual market close time for that day — NYSE regular close is 4:00 PM ET, but early closes (e.g. day before Thanksgiving, Christmas Eve) are 1:00 PM ET. Use the NYSE calendar to determine the correct close time.
+    - Schedule execution for 5 minutes before the actual close time.
     - For each ETF in the list, calculate the % price change since the previous close. Trade proportionally at a rate of $165 per 1% move per $10,000 of total liquidation value. Total liquidation value is the net liquidation value of the account queried live from IB at execution time. Buy on drops, sell on rises (e.g. a 0.5% drop = buy $82.50 per $10,000 liquidation value; a 2% rise = sell $330 per $10,000 liquidation value). No rounding — trade amount scales linearly with the % change.
     - Trade Amount = (|% Change| / 1%) × $165 × (Total Liquidation Value / $10,000)
     - Minimum trade size is $1.00. Skip the trade if the calculated Trade Amount is less than $1.00.
@@ -28,7 +31,7 @@ Update the CLAUDE.md whenever relevant.
 - [x] Fix README Position Sizing section — still says "no minimum threshold" but $1.00 minimum was added. **Resolved.**
 - [x] Fix CLAUDE.md intro — still says "sector and bond ETFs" but bond ETFs (UBT, UJB, UST) were removed. **Resolved: removed "and bond" from all descriptions.**
 - [x] Define "Total Deposited Cash" — clarify whether this is the fixed initial deposit amount or the current account net liquidation value; affects every trade calculation. **Resolved: use net liquidation value of the account queried live from IB at execution time.**
-- [ ] Add market open / holiday check — scheduler must confirm it's an actual trading day before triggering
+- [x] Add market open / holiday check — scheduler must confirm it's an actual trading day before triggering. **Resolved: check NYSE calendar each day; skip if holiday; determine actual close time (regular 4:00 PM ET or early close 1:00 PM ET); trigger 5 min before actual close.**
 - [x] Add cap on trade size — no upper limit currently; a large % move on a large account could generate an unexpectedly large order. **Resolved: no cap on trade size.**
 - [ ] Add daily execution guard — prevent the strategy from firing more than once per trading day if the script restarts
 - [x] Clarify fractional shares handling — IB supports fractional shares for some ETFs but not all; define behavior for unsupported ETFs. **Resolved: all listed ETFs support fractional shares; skip trade if an ETF does not support fractional shares.**

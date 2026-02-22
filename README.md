@@ -16,9 +16,13 @@ flowchart TD
     E --> F[Fetch Net Liquidation Value\nfrom IB Account]
     F --> G["Base Rate = $165 × (Net Liquidation Value / $10,000)"]
 
-    G --> H[Wait for Daily Trigger\n5 Minutes Before Market Close]
+    G --> H[Wait for Next Day\nat Market Open]
+    H --> H1{Is Market Open\nToday?\nCheck NYSE Calendar}
+    H1 -- No\nHoliday --> H
+    H1 -- Yes --> H2[Get Actual Close Time\nRegular: 4:00 PM ET\nEarly Close: 1:00 PM ET]
+    H2 --> H3[Wait Until\n5 Min Before Close]
 
-    H --> I[For Each ETF in List]
+    H3 --> I[For Each ETF in List]
     I --> J[Fetch Current Price]
     J --> K[Fetch Previous Close Price]
     K --> L["% Change = (Current − Prev Close) / Prev Close × 100"]
