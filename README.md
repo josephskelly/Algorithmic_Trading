@@ -26,7 +26,10 @@ flowchart TD
     M --> M2{"Trade Amount\n≥ $1.00?"}
     M2 -- No --> M3[Skip Trade\nLog: Below Minimum]
     M3 --> S
-    M2 -- Yes --> N{"% Change\n< 0?\n(price dropped)"}
+    M2 -- Yes --> M4{Fractional Shares\nSupported?}
+    M4 -- No --> M5[Skip Trade\nLog: No Fractional Shares]
+    M5 --> S
+    M4 -- Yes --> N{"% Change\n< 0?\n(price dropped)"}
     N -- Yes --> O{Sufficient Cash\nAvailable?}
     O -- No --> P[Skip Trade\nLog: Insufficient Cash]
     O -- Yes --> Q[Place BUY Market Order\nfor Trade Amount]
