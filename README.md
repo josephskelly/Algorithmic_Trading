@@ -23,8 +23,10 @@ flowchart TD
     J --> K[Fetch Previous Close Price]
     K --> L["% Change = (Current − Prev Close) / Prev Close × 100"]
     L --> M["Trade Amount = (|% Change| / 1%) × Base Rate\ne.g. 0.5% drop → buy 0.5 × Base Rate"]
-
-    M --> N{"% Change\n< 0?\n(price dropped)"}
+    M --> M2{"Trade Amount\n≥ $1.00?"}
+    M2 -- No --> M3[Skip Trade\nLog: Below Minimum]
+    M3 --> S
+    M2 -- Yes --> N{"% Change\n< 0?\n(price dropped)"}
     N -- Yes --> O{Sufficient Cash\nAvailable?}
     O -- No --> P[Skip Trade\nLog: Insufficient Cash]
     O -- Yes --> Q[Place BUY Market Order\nfor Trade Amount]

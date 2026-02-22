@@ -8,6 +8,7 @@ Using ibapi and a paper trading account, we will execute our algorithmic trading
 - At 5 minutes before close every trading day, execute strategy:
     - For each ETF in the list, calculate the % price change since the previous close. Trade proportionally at a rate of $165 per 1% move per $10,000 of total deposited cash. Buy on drops, sell on rises (e.g. a 0.5% drop = buy $82.50 per $10,000 deposited; a 2% rise = sell $330 per $10,000 deposited). No rounding — trade amount scales linearly with the % change.
     - Trade Amount = (|% Change| / 1%) × $165 × (Total Deposited / $10,000)
+    - Minimum trade size is $1.00. Skip the trade if the calculated Trade Amount is less than $1.00.
     - The only limit is the amount of cash available for trading that day in the account. Skip the trade if would result in a negative cash balance.
 
 
