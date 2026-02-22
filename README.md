@@ -13,8 +13,8 @@ flowchart TD
     B --> C{Connection\nSuccessful?}
     C -- No --> D[Log Error & Exit]
     C -- Yes --> E[Load ETF List from ETFs.csv]
-    E --> F[Fetch Account Info\nTotal Deposited Cash]
-    F --> G["Base Rate = $165 × (Total Deposited / $10,000)"]
+    E --> F[Fetch Available Cash\nfrom IB Account\n(Buying Power, No Margin)]
+    F --> G["Base Rate = $165 × (Available Cash / $10,000)"]
 
     G --> H[Wait for Daily Trigger\n5 Minutes Before Market Close]
 
@@ -52,11 +52,11 @@ flowchart TD
 
 ## Position Sizing
 
-Trade amount scales linearly with both the % price change and total deposited cash. There is no rounding or minimum threshold.
+Trade amount scales linearly with both the % price change and available cash. Available cash is the cash buying power (no margin) queried live from the IB account at execution time. Minimum trade size is $1.00.
 
-**Formula:** `Trade Amount = (|% Change| / 1%) × $165 × (Total Deposited / $10,000)`
+**Formula:** `Trade Amount = (|% Change| / 1%) × $165 × (Available Cash / $10,000)`
 
-| % Change | $10,000 deposited | $20,000 deposited | $50,000 deposited |
+| % Change | $10,000 available | $20,000 available | $50,000 available |
 |---|---|---|---|
 | 0.5% | $82.50 | $165.00 | $412.50 |
 | 1.0% | $165.00 | $330.00 | $825.00 |
