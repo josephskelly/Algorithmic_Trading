@@ -67,18 +67,18 @@ Trade amount scales linearly with both the % price change and total deposited ca
 
 | Symbol | Sector |
 |---|---|
-| DIG | Oil & Gas |
-| LTL | Bonds |
-| ROM | Real Estate |
-| RXL | Healthcare |
-| UBT | Bonds |
-| UCC | Consumer |
-| UGE | Energy |
-| UJB | Bonds |
+| DIG | Energy |
+| LTL | Communication Services |
+| ROM | Technology |
+| RXL | Health Care |
+| UBT | Long-term Bonds |
+| UCC | Consumer Discretionary |
+| UGE | Consumer Staples |
+| UJB | High Yield Bonds |
 | UPW | Utilities |
 | URE | Real Estate |
-| UST | Stocks (Short) |
-| UXI | Financials |
+| UST | 7-10 Year Bonds |
+| UXI | Industrials |
 | UYG | Financials |
 | UYM | Materials |
 
