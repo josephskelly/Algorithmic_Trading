@@ -1,7 +1,7 @@
 # Algorithmic_Trading
 Algorithmic trading script.
 
-Using ibapi and a paper trading account, we will execute our algorithmic trading strategy. The strategy buys 2x leveraged sector and bond ETFs when they drop and sells them when they rise.  
+Using ibapi and a paper trading account, we will execute our algorithmic trading strategy. The strategy buys 2x leveraged sector ETFs when they drop and sells them when they rise.  
 
 - Cash account. No margin.
 - List of ETFs available for trading in ETFs.csv.
@@ -25,8 +25,8 @@ Update the README whenever relevant.
 Update the CLAUDE.md whenever relevant.
 
 # TODO
-- [ ] Fix README Position Sizing section — still says "no minimum threshold" but $1.00 minimum was added
-- [ ] Fix CLAUDE.md intro — still says "sector and bond ETFs" but bond ETFs (UBT, UJB, UST) were removed
+- [x] Fix README Position Sizing section — still says "no minimum threshold" but $1.00 minimum was added. **Resolved.**
+- [x] Fix CLAUDE.md intro — still says "sector and bond ETFs" but bond ETFs (UBT, UJB, UST) were removed. **Resolved: removed "and bond" from all descriptions.**
 - [x] Define "Total Deposited Cash" — clarify whether this is the fixed initial deposit amount or the current account net liquidation value; affects every trade calculation. **Resolved: use net liquidation value of the account queried live from IB at execution time.**
 - [ ] Add market open / holiday check — scheduler must confirm it's an actual trading day before triggering
 - [ ] Add cap on trade size — no upper limit currently; a large % move on a large account could generate an unexpectedly large order

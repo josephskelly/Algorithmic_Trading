@@ -3,7 +3,7 @@ Algorithmic trading script using Interactive Brokers (ibapi) on a paper trading 
 
 ## Strategy Overview
 
-Buys 2x leveraged sector and bond ETFs when they drop and sells them when they rise, executing 5 minutes before market close each trading day.
+Buys 2x leveraged sector ETFs when they drop and sells them when they rise, executing 5 minutes before market close each trading day.
 
 ## Flow Chart
 
@@ -68,7 +68,7 @@ Trade amount scales linearly with both the % price change and account net liquid
 
 ## ETFs
 
-2x leveraged sector and bond ETFs (see `ETFs.csv` for full list):
+2x leveraged sector ETFs (see `ETFs.csv` for full list):
 
 | Symbol | Description |
 |---|---|
