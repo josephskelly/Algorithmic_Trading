@@ -33,7 +33,10 @@ flowchart TD
     M2 -- Yes --> M4{Fractional Shares\nSupported?}
     M4 -- No --> M5[Skip Trade\nLog: No Fractional Shares]
     M5 --> S
-    M4 -- Yes --> N{"% Change\n< 0?\n(price dropped)"}
+    M4 -- Yes --> M6{Already Traded\nThis ETF Today?}
+    M6 -- Yes --> M7[Skip Trade\nLog: Daily Limit Reached]
+    M7 --> S
+    M6 -- No --> N{"% Change\n< 0?\n(price dropped)"}
     N -- Yes --> O{Sufficient Cash\nAvailable?}
     O -- No --> P[Skip Trade\nLog: Insufficient Cash]
     O -- Yes --> Q[Place BUY Market Order\nfor Trade Amount]
