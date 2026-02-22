@@ -15,6 +15,13 @@ Using ibapi and a paper trading account, we will execute our algorithmic trading
     - All ETFs in the list support fractional shares. If an ETF does not support fractional shares on a buy, skip the trade. On a sell, if fractional shares are not supported, round down to the nearest whole share (floor); if rounding down results in 0 shares, skip the trade.
     - The only limit is the amount of cash available for trading that day in the account. Skip the trade if would result in a negative cash balance.
     - Maximum one trade per ETF per day. Skip the trade if an order has already been placed for that ETF today.
+- Connection recovery: if the connection to TWS/Gateway drops during the trading window:
+    - Attempt to reconnect up to 3 times with 5-second gaps between attempts.
+    - If all reconnect attempts fail, log the error and abort for the day.
+    - After a successful reconnect, query IB for today's executed and open orders to rebuild the "already traded today" set before resuming.
+    - Resume execution for any ETFs not yet processed; skip ETFs already confirmed traded.
+    - If reconnecting would push past market close, abort instead of reconnecting.
+    - If an order's status is ambiguous after reconnect, skip that ETF and log it.
 
 
 It is imperative that we do not trade with real money and everything is done on a paper trading account only.
@@ -37,4 +44,4 @@ Update the CLAUDE.md whenever relevant.
 - [x] Add daily execution guard — prevent the strategy from firing more than once per trading day if the script restarts. **Resolved: maximum one trade per ETF per day; skip if already traded that ETF today.**
 - [x] Clarify fractional shares handling — IB supports fractional shares for some ETFs but not all; define behavior for unsupported ETFs. **Resolved: all listed ETFs support fractional shares; skip trade if an ETF does not support fractional shares.**
 - [x] Clarify sell sizing — selling a dollar amount requires converting to shares at current price; define how to handle rounding to whole shares and any residual. **Resolved: if fractional shares not supported on a sell, floor to nearest whole share; skip if result is 0 shares.**
-- [ ] Add connection recovery logic — define reconnect behavior if TWS/Gateway drops during the trading window
+- [x] Add connection recovery logic — define reconnect behavior if TWS/Gateway drops during the trading window. **Resolved: retry up to 3 times with 5s gaps; abort if all fail or past market close; query IB after reconnect to rebuild traded-today set; skip ambiguous-state ETFs.**
