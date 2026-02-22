@@ -22,3 +22,14 @@ Build out in modular pieces. Review in phases.
 In the README, include detailed information on setup from a new user's perspective.
 Update the README whenever relevant.
 Update the CLAUDE.md whenever relevant.
+
+# TODO
+- [ ] Fix README Position Sizing section — still says "no minimum threshold" but $1.00 minimum was added
+- [ ] Fix CLAUDE.md intro — still says "sector and bond ETFs" but bond ETFs (UBT, UJB, UST) were removed
+- [ ] Define "Total Deposited Cash" — clarify whether this is the fixed initial deposit amount or the current account net liquidation value; affects every trade calculation
+- [ ] Add market open / holiday check — scheduler must confirm it's an actual trading day before triggering
+- [ ] Add cap on trade size — no upper limit currently; a large % move on a large account could generate an unexpectedly large order
+- [ ] Add daily execution guard — prevent the strategy from firing more than once per trading day if the script restarts
+- [ ] Clarify fractional shares handling — IB supports fractional shares for some ETFs but not all; define behavior for unsupported ETFs
+- [ ] Clarify sell sizing — selling a dollar amount requires converting to shares at current price; define how to handle rounding to whole shares and any residual
+- [ ] Add connection recovery logic — define reconnect behavior if TWS/Gateway drops during the trading window
