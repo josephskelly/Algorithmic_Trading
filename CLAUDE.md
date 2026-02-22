@@ -1,7 +1,7 @@
 # Algorithmic_Trading
 Algorithmic trading script.
 
-Using ibapi and a paper trading account, we will execute our algorithmic trading strategy.
+Using ibapi and a paper trading account, we will execute our algorithmic trading strategy. The strategy buys 2x leveraged sector and bond ETFs when they drop and sells them when they rise.  
 
 - Cash account. No margin.
 - List of ETFs available for trading in ETFs.csv.
