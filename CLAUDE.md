@@ -6,8 +6,8 @@ Using ibapi and a paper trading account, we will execute our algorithmic trading
 - Cash account. No margin.
 - List of ETFs available for trading in ETFs.csv.
 - At 5 minutes before close every trading day, execute strategy:
-    - For each ETF in the list, calculate the % price change since the previous close. Trade proportionally at a rate of $165 per 1% move per $10,000 of available cash. Available cash is the cash buying power (no margin) queried live from the IB account at execution time. Buy on drops, sell on rises (e.g. a 0.5% drop = buy $82.50 per $10,000 available; a 2% rise = sell $330 per $10,000 available). No rounding — trade amount scales linearly with the % change.
-    - Trade Amount = (|% Change| / 1%) × $165 × (Available Cash / $10,000)
+    - For each ETF in the list, calculate the % price change since the previous close. Trade proportionally at a rate of $165 per 1% move per $10,000 of total liquidation value. Total liquidation value is the net liquidation value of the account queried live from IB at execution time. Buy on drops, sell on rises (e.g. a 0.5% drop = buy $82.50 per $10,000 liquidation value; a 2% rise = sell $330 per $10,000 liquidation value). No rounding — trade amount scales linearly with the % change.
+    - Trade Amount = (|% Change| / 1%) × $165 × (Total Liquidation Value / $10,000)
     - Minimum trade size is $1.00. Skip the trade if the calculated Trade Amount is less than $1.00.
     - The only limit is the amount of cash available for trading that day in the account. Skip the trade if would result in a negative cash balance.
 
@@ -26,7 +26,7 @@ Update the CLAUDE.md whenever relevant.
 # TODO
 - [ ] Fix README Position Sizing section — still says "no minimum threshold" but $1.00 minimum was added
 - [ ] Fix CLAUDE.md intro — still says "sector and bond ETFs" but bond ETFs (UBT, UJB, UST) were removed
-- [x] Define "Total Deposited Cash" — clarify whether this is the fixed initial deposit amount or the current account net liquidation value; affects every trade calculation. **Resolved: use available cash buying power (no margin) queried live from IB at execution time.**
+- [x] Define "Total Deposited Cash" — clarify whether this is the fixed initial deposit amount or the current account net liquidation value; affects every trade calculation. **Resolved: use net liquidation value of the account queried live from IB at execution time.**
 - [ ] Add market open / holiday check — scheduler must confirm it's an actual trading day before triggering
 - [ ] Add cap on trade size — no upper limit currently; a large % move on a large account could generate an unexpectedly large order
 - [ ] Add daily execution guard — prevent the strategy from firing more than once per trading day if the script restarts
