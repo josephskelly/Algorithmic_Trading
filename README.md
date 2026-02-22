@@ -14,53 +14,52 @@ flowchart TD
     C -- No --> D[Log Error & Exit]
     C -- Yes --> E[Load ETF List from ETFs.csv]
     E --> F[Fetch Account Info\nTotal Deposited Cash]
-    F --> G["Calculate Position Size\nX = $165 per $10,000 deposited"]
+    F --> G["Base Rate = $165 × (Total Deposited / $10,000)"]
 
     G --> H[Wait for Daily Trigger\n5 Minutes Before Market Close]
 
     H --> I[For Each ETF in List]
     I --> J[Fetch Current Price]
     J --> K[Fetch Previous Close Price]
-    K --> L["Calculate % Change\n= (Current - Prev Close) / Prev Close × 100"]
+    K --> L["% Change = (Current − Prev Close) / Prev Close × 100"]
+    L --> M["Trade Amount = (|% Change| / 1%) × Base Rate\ne.g. 0.5% drop → buy 0.5 × Base Rate"]
 
-    L --> M{"% Change\n≤ -1%?"}
-    M -- Yes --> N["Units to Buy\n= floor(abs(% Change) / 1%)"]
-    N --> O["Trade Amount = Units × X"]
-    O --> P{Sufficient Cash\nAvailable?}
-    P -- No --> Q[Skip Trade\nLog: Insufficient Cash]
-    P -- Yes --> R[Place BUY Market Order]
-    R --> S[Deduct from Available Cash]
-    S --> T{More ETFs\nin List?}
-    Q --> T
+    M --> N{"% Change\n< 0?\n(price dropped)"}
+    N -- Yes --> O{Sufficient Cash\nAvailable?}
+    O -- No --> P[Skip Trade\nLog: Insufficient Cash]
+    O -- Yes --> Q[Place BUY Market Order\nfor Trade Amount]
+    Q --> R[Deduct Trade Amount\nfrom Available Cash]
+    R --> S{More ETFs\nin List?}
+    P --> S
 
-    M -- No --> U{"% Change\n≥ +1%?"}
-    U -- Yes --> V["Units to Sell\n= floor(% Change / 1%)"]
-    V --> W["Trade Amount = Units × X"]
-    W --> X{Sufficient Shares\nOwned?}
-    X -- No --> Y[Skip Trade\nLog: Insufficient Shares]
-    X -- Yes --> Z[Place SELL Market Order]
-    Z --> AA[Update Available Cash]
-    AA --> T
-    Y --> T
+    N -- No --> T{"% Change\n> 0?\n(price rose)"}
+    T -- Yes --> U{Sufficient Shares\nOwned?}
+    U -- No --> V[Skip Trade\nLog: Insufficient Shares]
+    U -- Yes --> W[Place SELL Market Order\nfor Trade Amount]
+    W --> X[Update Available Cash]
+    X --> S
+    V --> S
 
-    U -- No --> AB[No Trade\nPrice Change < 1%]
-    AB --> T
+    T -- No --> Y[No Trade\nPrice Unchanged]
+    Y --> S
 
-    T -- Yes --> I
-    T -- No --> AC[Log All Orders Placed]
-    AC --> H
+    S -- Yes --> I
+    S -- No --> Z[Log All Orders Placed]
+    Z --> H
 ```
 
 ## Position Sizing
 
-| Total Deposited Cash | Trade Size per 1% Move (X) |
-|---|---|
-| $10,000 | $165 |
-| $20,000 | $330 |
-| $50,000 | $825 |
-| $100,000 | $1,650 |
+Trade amount scales linearly with both the % price change and total deposited cash. There is no rounding or minimum threshold.
 
-**Formula:** `X = (Total Deposited Cash / $10,000) × $165`
+**Formula:** `Trade Amount = (|% Change| / 1%) × $165 × (Total Deposited / $10,000)`
+
+| % Change | $10,000 deposited | $20,000 deposited | $50,000 deposited |
+|---|---|---|---|
+| 0.5% | $82.50 | $165.00 | $412.50 |
+| 1.0% | $165.00 | $330.00 | $825.00 |
+| 2.0% | $330.00 | $660.00 | $1,650.00 |
+| 3.5% | $577.50 | $1,155.00 | $2,887.50 |
 
 ## ETFs
 
