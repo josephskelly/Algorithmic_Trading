@@ -13,51 +13,64 @@ flowchart TD
     B --> C{Connection\nSuccessful?}
     C -- No --> D[Log Error & Exit]
     C -- Yes --> E[Load ETF List from ETFs.csv]
-    E --> F[Fetch Net Liquidation Value\nfrom IB Account]
-    F --> G["Base Rate = $165 × (Net Liquidation Value / $10,000)"]
 
-    G --> H[Wait for Next Day\nat Market Open]
+    E --> H[Wait for Next Day\nat Market Open]
     H --> H1{Is Market Open\nToday?\nCheck NYSE Calendar}
     H1 -- No\nHoliday --> H
     H1 -- Yes --> H2[Get Actual Close Time\nRegular: 4:00 PM ET\nEarly Close: 1:00 PM ET]
     H2 --> H3[Wait Until\n5 Min Before Close]
 
-    H3 --> I[For Each ETF in List]
-    I --> J[Fetch Current Price]
-    J --> K[Fetch Previous Close Price]
-    K --> L["% Change = (Current − Prev Close) / Prev Close × 100"]
-    L --> M["Trade Amount = (|% Change| / 1%) × Base Rate\ne.g. 0.5% drop → buy 0.5 × Base Rate"]
-    M --> M2{"Trade Amount\n≥ $1.00?"}
-    M2 -- No --> M3[Skip Trade\nLog: Below Minimum]
-    M3 --> S
-    M2 -- Yes --> M4{Fractional Shares\nSupported?}
-    M4 -- No --> M5[Skip Trade\nLog: No Fractional Shares]
-    M5 --> S
-    M4 -- Yes --> M6{Already Traded\nThis ETF Today?}
-    M6 -- Yes --> M7[Skip Trade\nLog: Daily Limit Reached]
-    M7 --> S
-    M6 -- No --> N{"% Change\n< 0?\n(price dropped)"}
-    N -- Yes --> O{Sufficient Cash\nAvailable?}
-    O -- No --> P[Skip Trade\nLog: Insufficient Cash]
+    H3 --> F[Fetch Net Liquidation\nValue from IB Account]
+    F --> G["Base Rate = $165 × (NLV / $10,000)"]
+
+    G --> I[For Each ETF in List]
+    I --> J[Fetch Current Price &\nPrevious Close Price]
+    J --> L["% Change = (Current − Prev Close) / Prev Close × 100"]
+    L --> M["Trade Amount = (|% Change| / 1%) × Base Rate"]
+    M --> M2{"Trade Amount ≥ $1.00?"}
+    M2 -- No --> M3[Skip Trade\nLog: Below Minimum] --> S
+    M2 -- Yes --> M6{Already Traded\nThis ETF Today?}
+    M6 -- Yes --> M7[Skip Trade\nLog: Daily Limit] --> S
+    M6 -- No --> N{"% Change < 0?\n(price dropped)"}
+
+    N -- Yes --> BF{Fractional Shares\nSupported?}
+    BF -- No --> BFS[Skip Trade\nLog: No Fractional Shares] --> S
+    BF -- Yes --> O{Sufficient Cash\nAvailable?}
+    O -- No --> P[Skip Trade\nLog: Insufficient Cash] --> S
     O -- Yes --> Q[Place BUY Market Order\nfor Trade Amount]
-    Q --> R[Deduct Trade Amount\nfrom Available Cash]
-    R --> S{More ETFs\nin List?}
-    P --> S
+    Q --> QCONN{Order Placed OK?}
+    QCONN -- Yes --> R[Deduct Trade Amount\nfrom Available Cash] --> S
 
-    N -- No --> T{"% Change\n> 0?\n(price rose)"}
-    T -- Yes --> U{Sufficient Shares\nOwned?}
-    U -- No --> V[Skip Trade\nLog: Insufficient Shares]
-    U -- Yes --> W[Place SELL Market Order\nfor Trade Amount]
-    W --> X[Update Available Cash]
-    X --> S
-    V --> S
+    N -- No --> T{"% Change > 0?\n(price rose)"}
+    T -- Yes --> SF{Fractional Shares\nSupported?}
+    SF -- Yes --> U{Sufficient Shares\nOwned?}
+    SF -- No --> FL["Floor Shares = floor(Trade Amount / Price)"]
+    FL --> FLC{Floor Shares > 0?}
+    FLC -- No --> FLS[Skip Trade\nLog: 0 Shares After Floor] --> S
+    FLC -- Yes --> U
+    U -- No --> V[Skip Trade\nLog: Insufficient Shares] --> S
+    U -- Yes --> W[Place SELL Market Order]
+    W --> WCONN{Order Placed OK?}
+    WCONN -- Yes --> X[Update Available Cash] --> S
 
-    T -- No --> Y[No Trade\nPrice Unchanged]
-    Y --> S
+    T -- No --> Y[No Trade\nPrice Unchanged] --> S
 
+    S{More ETFs in List?}
     S -- Yes --> I
-    S -- No --> Z[Log All Orders Placed]
-    Z --> H
+    S -- No --> Z[Log All Orders Placed] --> H
+
+    QCONN -- No --> CREC1
+    WCONN -- No --> CREC1
+    CREC1{Past Market Close?}
+    CREC1 -- Yes --> CRECA[Log Error\nAbort for Day] --> H
+    CREC1 -- No --> CREC2["Attempt Reconnect\n(up to 3× with 5s gaps)"]
+    CREC2 --> CREC3{Reconnect\nSuccessful?}
+    CREC3 -- No --> CRECF[Log Error\nAbort for Day] --> H
+    CREC3 -- Yes --> CREC4[Query IB for Today's\nExecuted & Open Orders]
+    CREC4 --> CREC5[Rebuild Already-Traded-Today Set]
+    CREC5 --> CREC6{Current ETF\nOrder Ambiguous?}
+    CREC6 -- Yes --> CREC7[Skip ETF\nLog: Ambiguous State] --> S
+    CREC6 -- No --> I
 ```
 
 ## Position Sizing
@@ -141,6 +154,6 @@ algorithmic_trading/
 ### Important Notes
 
 - **Paper trading only.** This script is configured exclusively for paper trading accounts (port 7497). Do not connect it to a live account.
-- The script runs continuously and executes the strategy once per day, 5 minutes before market close (3:55 PM ET).
+- The script runs continuously and executes the strategy once per day, 5 minutes before the actual market close (typically 3:55 PM ET; adjusted on early-close days).
 - Available cash is checked before every buy order. Trades are skipped if cash is insufficient.
 - All orders are market orders executed at the prevailing price.
