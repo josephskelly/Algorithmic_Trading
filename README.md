@@ -38,11 +38,10 @@ flowchart TD
     BF -- Yes --> O{Sufficient Cash\nAvailable?}
     O -- No --> P[Skip Trade\nLog: Insufficient Cash] --> S
     O -- Yes --> Q[Place BUY Market Order\nfor Trade Amount]
-    Q --> QCONN{Order Placed OK?}
-    QCONN -- Yes --> R[Deduct Trade Amount\nfrom Available Cash] --> S
+    Q --> QCONN{Connection Lost?}
+    QCONN -- No --> R[Deduct Trade Amount\nfrom Available Cash] --> S
 
-    N -- No --> T{"% Change > 0?\n(price rose)"}
-    T -- Yes --> SF{Fractional Shares\nSupported?}
+    N -- No\n(price rose) --> SF{Fractional Shares\nSupported?}
     SF -- Yes --> U{Sufficient Shares\nOwned?}
     SF -- No --> FL["Floor Shares = floor(Trade Amount / Price)"]
     FL --> FLC{Floor Shares > 0?}
@@ -50,17 +49,15 @@ flowchart TD
     FLC -- Yes --> U
     U -- No --> V[Skip Trade\nLog: Insufficient Shares] --> S
     U -- Yes --> W[Place SELL Market Order]
-    W --> WCONN{Order Placed OK?}
-    WCONN -- Yes --> X[Update Available Cash] --> S
-
-    T -- No --> Y[No Trade\nPrice Unchanged] --> S
+    W --> WCONN{Connection Lost?}
+    WCONN -- No --> X[Update Available Cash] --> S
 
     S{More ETFs in List?}
     S -- Yes --> I
     S -- No --> Z[Log All Orders Placed] --> H
 
-    QCONN -- No --> CREC1
-    WCONN -- No --> CREC1
+    QCONN -- Yes --> CREC1
+    WCONN -- Yes --> CREC1
     CREC1{Past Market Close?}
     CREC1 -- Yes --> CRECA[Log Error\nAbort for Day] --> H
     CREC1 -- No --> CREC2["Attempt Reconnect\n(up to 3× with 5s gaps)"]
