@@ -47,3 +47,4 @@ Update the CLAUDE.md whenever relevant.
 - [x] Add connection recovery logic — define reconnect behavior if the tastytrade API connection drops during the trading window. **Resolved: retry up to 3 times with 5s gaps; abort if all fail or past market close; query TastyTrade after reconnect to rebuild traded-today set; skip ambiguous-state ETFs.**
 - [ ] Verify all 11 ETFs in ETFs.csv are `is-fractional-quantity-eligible` on tastytrade before relying on `NOTIONAL_MARKET` orders.
 - [ ] Confirm `NOTIONAL_MARKET` sell behavior in sandbox testing once implementation is complete.
+- [ ] Add `.env.example` to the repo as a credential template for new users.
