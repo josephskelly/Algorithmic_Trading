@@ -1,5 +1,5 @@
 # Algorithmic_Trading
-Algorithmic trading script using Interactive Brokers (ibapi) on a paper trading account.
+Algorithmic trading script using the tastytrade API on a sandbox (paper trading) account.
 
 ## Strategy Overview
 
@@ -9,7 +9,7 @@ Buys 2x leveraged sector ETFs when they drop and sells them when they rise, exec
 
 ```mermaid
 flowchart TD
-    A([Start]) --> B[Connect to IB Paper Trading Account]
+    A([Start]) --> B[Connect to TastyTrade\nSandbox Account]
     B --> C{Connection\nSuccessful?}
     C -- No --> D[Log Error & Exit]
     C -- Yes --> E[Load ETF List from ETFs.csv]
@@ -20,35 +20,35 @@ flowchart TD
     H1 -- Yes --> H2[Get Actual Close Time\nRegular: 4:00 PM ET\nEarly Close: 1:00 PM ET]
     H2 --> H3[Wait Until\n5 Min Before Close]
 
-    H3 --> F[Fetch Net Liquidation\nValue from IB Account]
+    H3 --> F[Fetch Net Liquidation\nValue from TastyTrade]
     F --> G["Base Rate = $165 × (NLV / $10,000)"]
 
     G --> I[For Each ETF in List]
     I --> J[Fetch Current Price &\nPrevious Close Price]
     J --> L["% Change = (Current − Prev Close) / Prev Close × 100"]
     L --> M["Trade Amount = (|% Change| / 1%) × Base Rate"]
-    M --> M2{"Trade Amount ≥ $1.00?"}
+    M --> M2{"Trade Amount ≥ $5.00?"}
     M2 -- No --> M3[Skip Trade\nLog: Below Minimum] --> S
     M2 -- Yes --> M6{Already Traded\nThis ETF Today?}
     M6 -- Yes --> M7[Skip Trade\nLog: Daily Limit] --> S
     M6 -- No --> N{"% Change < 0?\n(price dropped)"}
 
-    N -- Yes --> BF{Fractional Shares\nSupported?}
+    N -- Yes --> BF{is-fractional-\nquantity-eligible?}
     BF -- No --> BFS[Skip Trade\nLog: No Fractional Shares] --> S
     BF -- Yes --> O{Sufficient Cash\nAvailable?}
     O -- No --> P[Skip Trade\nLog: Insufficient Cash] --> S
-    O -- Yes --> Q[Place BUY Market Order\nfor Trade Amount]
+    O -- Yes --> Q[Place NOTIONAL_MARKET\nBUY for Trade Amount]
     Q --> QCONN{Connection Lost?}
     QCONN -- No --> R[Deduct Trade Amount\nfrom Available Cash] --> S
 
-    N -- No\n(price rose) --> SF{Fractional Shares\nSupported?}
-    SF -- Yes --> U{Sufficient Shares\nOwned?}
-    SF -- No --> FL["Floor Shares = floor(Trade Amount / Price)"]
-    FL --> FLC{Floor Shares > 0?}
+    N -- No\n(price rose) --> SF{is-fractional-\nquantity-eligible?}
+    SF -- Yes --> U{Sufficient Position\nValue ≥ Trade Amount?}
+    SF -- No --> FL["Whole Shares = floor(Trade Amount / Price)"]
+    FL --> FLC{Whole Shares > 0?}
     FLC -- No --> FLS[Skip Trade\nLog: 0 Shares After Floor] --> S
     FLC -- Yes --> U
-    U -- No --> V[Skip Trade\nLog: Insufficient Shares] --> S
-    U -- Yes --> W[Place SELL Market Order]
+    U -- No --> V[Skip Trade\nLog: Insufficient Position] --> S
+    U -- Yes --> W[Place NOTIONAL_MARKET\nSELL for Trade Amount]
     W --> WCONN{Connection Lost?}
     WCONN -- No --> X[Update Available Cash] --> S
 
@@ -63,7 +63,7 @@ flowchart TD
     CREC1 -- No --> CREC2["Attempt Reconnect\n(up to 3× with 5s gaps)"]
     CREC2 --> CREC3{Reconnect\nSuccessful?}
     CREC3 -- No --> CRECF[Log Error\nAbort for Day] --> H
-    CREC3 -- Yes --> CREC4[Query IB for Today's\nExecuted & Open Orders]
+    CREC3 -- Yes --> CREC4[Query TastyTrade for Today's\nExecuted & Open Orders]
     CREC4 --> CREC5[Rebuild Already-Traded-Today Set]
     CREC5 --> CREC6{Current ETF\nOrder Ambiguous?}
     CREC6 -- Yes --> CREC7[Skip ETF\nLog: Ambiguous State] --> S
@@ -72,7 +72,7 @@ flowchart TD
 
 ## Position Sizing
 
-Trade amount scales linearly with both the % price change and account net liquidation value, queried live from IB at execution time. Minimum trade size is $1.00.
+Trade amount scales linearly with both the % price change and account net liquidation value, queried live from TastyTrade at execution time. Minimum trade size is $5.00.
 
 **Formula:** `Trade Amount = (|% Change| / 1%) × $165 × (Net Liquidation Value / $10,000)`
 
@@ -106,12 +106,12 @@ Trade amount scales linearly with both the % price change and account net liquid
 ```
 algorithmic_trading/
 ├── config.py          # Settings, constants, ETF list loader
-├── account.py         # IB account connection, cash/position queries
-├── market_data.py     # Price fetching (current & previous close)
+├── account.py         # TastyTrade connection, cash/position queries
+├── market_data.py     # Price fetching (current & previous close via DXLink)
 ├── strategy.py        # % change calculation, trade signal generation
-├── order_manager.py   # Market order placement via ibapi
+├── order_manager.py   # NOTIONAL_MARKET order placement via tastytrade SDK
 ├── scheduler.py       # Daily trigger 5 min before market close
-└── main.py            # Entry point, orchestration
+└── main.py            # Entry point, orchestration (asyncio event loop)
 ```
 
 ## Setup
@@ -119,8 +119,7 @@ algorithmic_trading/
 ### Prerequisites
 
 - Python 3.9+
-- Interactive Brokers TWS or IB Gateway (paper trading account)
-- `ibapi` Python client
+- A tastytrade sandbox account — register at [developer.tastytrade.com](https://developer.tastytrade.com/sandbox/)
 
 ### Installation
 
@@ -132,16 +131,17 @@ algorithmic_trading/
 
 2. **Install dependencies:**
    ```bash
-   pip install ibapi
+   pip install tastytrade python-dotenv exchange-calendars pandas
    ```
 
-3. **Configure Interactive Brokers:**
-   - Open TWS or IB Gateway
-   - Log in to your **paper trading** account
-   - Enable API connections: *File > Global Configuration > API > Settings*
-     - Check "Enable ActiveX and Socket Clients"
-     - Set Socket Port to `7497` (paper trading default)
-     - Check "Allow connections from localhost only"
+3. **Configure credentials:**
+
+   Create a `.env` file in the project root:
+   ```
+   TASTYTRADE_USERNAME=your_sandbox_username
+   TASTYTRADE_PASSWORD=your_sandbox_password
+   ```
+   The script targets the sandbox environment (`api.cert.tastyworks.com`) by default. Never put live account credentials here.
 
 4. **Run the script:**
    ```bash
@@ -150,7 +150,8 @@ algorithmic_trading/
 
 ### Important Notes
 
-- **Paper trading only.** This script is configured exclusively for paper trading accounts (port 7497). Do not connect it to a live account.
+- **Sandbox account only.** This script targets the tastytrade sandbox environment (`api.cert.tastyworks.com`). Do not configure it with live account credentials.
+- **The sandbox resets every 24 hours.** All positions, orders, and balances are wiped daily. This is expected behavior for the sandbox environment.
 - The script runs continuously and executes the strategy once per day, 5 minutes before the actual market close (typically 3:55 PM ET; adjusted on early-close days).
 - Available cash is checked before every buy order. Trades are skipped if cash is insufficient.
-- All orders are market orders executed at the prevailing price.
+- All orders are `NOTIONAL_MARKET` orders (dollar amount) for ETFs that support fractional shares, or whole-share market orders otherwise.
