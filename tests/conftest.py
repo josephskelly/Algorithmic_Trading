@@ -29,7 +29,7 @@ _tt_utils = types.ModuleType("tastytrade.utils")
 
 
 # --- Enums --------------------------------------------------------
-# Values MUST match real SDK; account.py:150 checks "Buy" in action.value
+# Values MUST match real SDK; account.py:150 uses enum identity (OrderAction.BUY_TO_OPEN)
 
 class OrderAction(Enum):
     BUY_TO_OPEN = "Buy to Open"
