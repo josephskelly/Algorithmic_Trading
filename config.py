@@ -17,8 +17,8 @@ ETF_CSV_PATH = BASE_DIR / "ETFs.csv"
 # ---------------------------------------------------------------------------
 # TastyTrade credentials & environment
 # ---------------------------------------------------------------------------
-TASTYTRADE_USERNAME = os.getenv("TASTYTRADE_USERNAME", "")
-TASTYTRADE_PASSWORD = os.getenv("TASTYTRADE_PASSWORD", "")
+TASTYTRADE_PROVIDER_SECRET = os.getenv("TASTYTRADE_PROVIDER_SECRET", "")
+TASTYTRADE_REFRESH_TOKEN = os.getenv("TASTYTRADE_REFRESH_TOKEN", "")
 SANDBOX = True  # Always True — we never trade with real money
 
 # ---------------------------------------------------------------------------
