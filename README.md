@@ -50,7 +50,7 @@ flowchart TD
     U -- No --> V[Skip Trade\nLog: Insufficient Position] --> S
     U -- Yes --> W[Place NOTIONAL_MARKET\nSELL for Trade Amount]
     W --> WCONN{Connection Lost?}
-    WCONN -- No --> X[Update Available Cash] --> S
+    WCONN -- No --> X[Log Trade Executed] --> S
 
     S{More ETFs in List?}
     S -- Yes --> I
@@ -186,6 +186,7 @@ The script runs continuously:
 - The script handles early-close days automatically (e.g., Christmas Eve at 1:00 PM ET).
 - If the connection drops during execution, the script retries up to 3 times with 5-second gaps. After reconnecting, it rebuilds the traded-today set from TastyTrade to avoid duplicate orders.
 - All orders use `NOTIONAL_MARKET` (dollar-amount) orders for ETFs that support fractional shares. For non-eligible ETFs, buys are skipped and sells are floored to whole shares.
+- Sell proceeds settle T+1 and are **not** available for same-day buys. The cash guard only tracks same-day buy spend.
 - The `traded_today.json` file persists the list of ETFs already traded each day, so the script can safely restart without double-trading.
 - Logs are printed to stdout. Redirect to a file for persistent logging:
   ```bash

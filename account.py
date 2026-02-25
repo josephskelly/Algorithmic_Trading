@@ -147,7 +147,7 @@ async def place_notional_order(
     """
     leg = _build_leg(symbol, action, quantity=None)
     # SDK convention: negative value = Debit (buy), positive = Credit (sell)
-    signed_value = -dollar_amount if "Buy" in action.value else dollar_amount
+    signed_value = -dollar_amount if action == OrderAction.BUY_TO_OPEN else dollar_amount
     order = NewOrder(
         time_in_force=OrderTimeInForce.DAY,
         order_type=OrderType.NOTIONAL_MARKET,

@@ -14,6 +14,7 @@ Using the tastytrade API and a sandbox account (paper trading only), we will exe
     - Minimum trade size is $5.00. Skip the trade if the calculated Trade Amount is less than $5.00.
     - Check each ETF's `is-fractional-quantity-eligible` flag at runtime via the tastytrade instruments endpoint. If eligible: place a single `NOTIONAL_MARKET` order for the Trade Amount (applies to both buys and sells). If not eligible on a buy, skip the trade. If not eligible on a sell, convert Trade Amount to shares (`Trade Amount / current price`), floor to nearest whole share, and skip if result is 0 shares.
     - The only limit is the amount of cash available for trading that day in the account. Skip the trade if would result in a negative cash balance.
+    - Sell proceeds settle T+1 and are not available for same-day buys. Only buy orders reduce the cash balance used for same-day guards.
     - Maximum one trade per ETF per day. Skip the trade if an order has already been placed for that ETF today.
 - Connection recovery: if the connection to the tastytrade API drops during the trading window:
     - Attempt to reconnect up to 3 times with 5-second gaps between attempts.

@@ -13,7 +13,7 @@ import config
 import market_data as md
 import order_manager as om
 import scheduler
-from strategy import compute_trade
+from strategy import TradeDirection, compute_trade
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -118,7 +118,7 @@ async def run_daily(market_close: datetime) -> None:
 
         if spent is not None:
             om.mark_traded(date_str, symbol, traded)
-            if decision.direction.value == "BUY":
+            if decision.direction == TradeDirection.BUY:
                 cash_available -= spent
             logger.info(
                 "%s: trade executed ($%.2f)  cash remaining: $%.2f",
