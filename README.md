@@ -104,54 +104,90 @@ Trade amount scales linearly with both the % price change and account net liquid
 ## Architecture
 
 ```
-algorithmic_trading/
-├── config.py          # Settings, constants, ETF list loader
-├── account.py         # TastyTrade connection, cash/position queries
-├── market_data.py     # Price fetching (current & previous close via DXLink)
-├── strategy.py        # % change calculation, trade signal generation
-├── order_manager.py   # NOTIONAL_MARKET order placement via tastytrade SDK
-├── scheduler.py       # Daily trigger 5 min before market close
-└── main.py            # Entry point, orchestration (asyncio event loop)
+Algorithmic_Trading/
+├── main.py            # Entry point — asyncio event loop, daily orchestration
+├── config.py          # Constants, ETF list loader, credentials from .env
+├── scheduler.py       # NYSE calendar, close-time detection, trigger timing
+├── account.py         # TastyTrade session, balances, order placement
+├── market_data.py     # Batch price fetching, % change computation
+├── strategy.py        # Trade sizing, direction (buy on drops, sell on rises)
+├── order_manager.py   # Traded-today tracking, connection recovery, execution
+├── ETFs.csv           # List of 2x leveraged sector ETFs
+├── requirements.txt   # Python dependencies
+├── .env.example       # Credential template (copy to .env)
+└── traded_today.json  # Runtime state (auto-generated, not committed)
 ```
 
 ## Setup
 
 ### Prerequisites
 
-- Python 3.9+
-- A tastytrade sandbox account — register at [developer.tastytrade.com](https://developer.tastytrade.com/sandbox/)
+- Python 3.11+
+- A tastytrade developer account and sandbox (paper trading) credentials
 
-### Installation
+### Step 1: Clone the repository
 
-1. **Clone the repository:**
-   ```bash
-   git clone <repo-url>
-   cd Algorithmic_Trading
-   ```
+```bash
+git clone <repo-url>
+cd Algorithmic_Trading
+```
 
-2. **Install dependencies:**
-   ```bash
-   pip install tastytrade python-dotenv exchange-calendars pandas
-   ```
+### Step 2: Create a virtual environment (recommended)
 
-3. **Configure credentials:**
+```bash
+python -m venv venv
+source venv/bin/activate   # Linux/macOS
+# venv\Scripts\activate    # Windows
+```
 
-   Create a `.env` file in the project root:
-   ```
-   TASTYTRADE_USERNAME=your_sandbox_username
-   TASTYTRADE_PASSWORD=your_sandbox_password
-   ```
-   The script targets the sandbox environment (`api.cert.tastyworks.com`) by default. Never put live account credentials here.
+### Step 3: Install dependencies
 
-4. **Run the script:**
-   ```bash
-   python main.py
-   ```
+```bash
+pip install -r requirements.txt
+```
+
+### Step 4: Set up tastytrade OAuth credentials
+
+The script uses OAuth2 authentication with the tastytrade API. You need a **provider secret** (client secret) and a **refresh token**.
+
+1. **Create a sandbox account** at [developer.tastytrade.com/sandbox/](https://developer.tastytrade.com/sandbox/)
+2. **Create an OAuth application** at the developer portal
+   - Set the callback URL to `http://localhost:8000`
+3. **Save the client secret** (provider secret) generated during app creation
+4. **Create a grant** (refresh token) from the OAuth Applications section
+5. **Copy `.env.example` to `.env`** and fill in both values:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env`:
+```
+TASTYTRADE_PROVIDER_SECRET=your_oauth_client_secret
+TASTYTRADE_REFRESH_TOKEN=your_refresh_token
+```
+
+Refresh tokens never expire, so this is a one-time setup.
+
+### Step 5: Run the script
+
+```bash
+python main.py
+```
+
+The script runs continuously:
+- On each trading day, it waits until 5 minutes before market close
+- Executes the strategy for all ETFs in `ETFs.csv`
+- Sleeps until the next trading day
 
 ### Important Notes
 
-- **Sandbox account only.** This script targets the tastytrade sandbox environment (`api.cert.tastyworks.com`). Do not configure it with live account credentials.
-- **The sandbox resets every 24 hours.** All positions, orders, and balances are wiped daily. This is expected behavior for the sandbox environment.
-- The script runs continuously and executes the strategy once per day, 5 minutes before the actual market close (typically 3:55 PM ET; adjusted on early-close days).
-- Available cash is checked before every buy order. Trades are skipped if cash is insufficient.
-- All orders are `NOTIONAL_MARKET` orders (dollar amount) for ETFs that support fractional shares, or whole-share market orders otherwise.
+- **Sandbox account only.** The `SANDBOX = True` flag in `config.py` ensures the script always connects to `api.cert.tastyworks.com`. Never change this to `False` or use live account credentials.
+- The script handles early-close days automatically (e.g., Christmas Eve at 1:00 PM ET).
+- If the connection drops during execution, the script retries up to 3 times with 5-second gaps. After reconnecting, it rebuilds the traded-today set from TastyTrade to avoid duplicate orders.
+- All orders use `NOTIONAL_MARKET` (dollar-amount) orders for ETFs that support fractional shares. For non-eligible ETFs, buys are skipped and sells are floored to whole shares.
+- The `traded_today.json` file persists the list of ETFs already traded each day, so the script can safely restart without double-trading.
+- Logs are printed to stdout. Redirect to a file for persistent logging:
+  ```bash
+  python main.py >> trading.log 2>&1
+  ```
