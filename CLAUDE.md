@@ -49,3 +49,4 @@ Update the CLAUDE.md whenever relevant.
 - [ ] Verify all 11 ETFs in ETFs.csv are `is-fractional-quantity-eligible` on tastytrade before relying on `NOTIONAL_MARKET` orders.
 - [ ] Confirm `NOTIONAL_MARKET` sell behavior in sandbox testing once implementation is complete.
 - [x] Add `.env.example` to the repo as a credential template for new users. **Resolved.**
+- [x] Add Google Cloud deployment instructions to README. **Resolved.**

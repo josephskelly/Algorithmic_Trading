@@ -192,3 +192,153 @@ The script runs continuously:
   ```bash
   python main.py >> trading.log 2>&1
   ```
+
+## Google Cloud Deployment
+
+To run the script continuously without relying on a personal machine, deploy it to a Google Cloud Compute Engine VM. The `e2-micro` instance type is included in Google Cloud's [free tier](https://cloud.google.com/free) (one per billing account in eligible US regions).
+
+### Prerequisites
+
+- A Google Cloud account with billing enabled (free tier is sufficient)
+- The [`gcloud` CLI](https://cloud.google.com/sdk/docs/install) installed on your local machine
+- Authenticate and select a project:
+
+```bash
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+```
+
+### 1. Create the VM
+
+```bash
+gcloud compute instances create algo-trading \
+    --zone=us-east1-b \
+    --machine-type=e2-micro \
+    --image-family=debian-12 \
+    --image-project=debian-cloud \
+    --boot-disk-size=10GB \
+    --boot-disk-type=pd-standard
+```
+
+`us-east1-b` is recommended since the script operates on Eastern Time (NYSE hours). The `e2-micro` instance (2 shared vCPUs, 1 GB memory) is more than sufficient — the script sleeps most of the time.
+
+### 2. Connect to the VM
+
+```bash
+gcloud compute ssh algo-trading --zone=us-east1-b
+```
+
+The first connection will generate SSH keys automatically.
+
+### 3. Install system dependencies
+
+Run on the VM:
+
+```bash
+sudo apt update && sudo apt install -y python3 python3-venv python3-pip git
+```
+
+### 4. Clone and set up the project
+
+```bash
+cd /opt
+sudo git clone <repo-url> algo-trading
+sudo chown -R $USER:$USER /opt/algo-trading
+cd /opt/algo-trading
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### 5. Configure credentials
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+Fill in `TASTYTRADE_PROVIDER_SECRET` and `TASTYTRADE_REFRESH_TOKEN` with your sandbox credentials (see [Step 4](#step-4-set-up-tastytrade-oauth-credentials) above for how to obtain these).
+
+Restrict file permissions since the file contains credentials:
+
+```bash
+chmod 600 .env
+```
+
+### 6. Create a systemd service
+
+This configures the script to start on boot, restart on failure, and capture logs via `journalctl`.
+
+Create the service file (replace `YOUR_USERNAME` with the output of `whoami`):
+
+```bash
+sudo tee /etc/systemd/system/algo-trading.service << 'EOF'
+[Unit]
+Description=Algorithmic Trading Script (tastytrade sandbox)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=YOUR_USERNAME
+WorkingDirectory=/opt/algo-trading
+ExecStart=/opt/algo-trading/venv/bin/python main.py
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+Enable and start the service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable algo-trading
+sudo systemctl start algo-trading
+```
+
+### 7. Verify it is running
+
+```bash
+sudo systemctl status algo-trading
+```
+
+The output should show `active (running)`. Check the live logs:
+
+```bash
+sudo journalctl -u algo-trading -f
+```
+
+You should see startup messages followed by either "Not a trading day -- sleeping until tomorrow" or "Waiting N seconds until trigger at HH:MM:SS ET".
+
+### 8. Useful commands
+
+| Command | Purpose |
+|---|---|
+| `sudo systemctl status algo-trading` | Check if the service is running |
+| `sudo journalctl -u algo-trading -f` | Follow live logs |
+| `sudo journalctl -u algo-trading --since today` | View today's logs |
+| `sudo journalctl -u algo-trading --since "2026-03-02"` | View logs from a specific date |
+| `sudo systemctl restart algo-trading` | Restart the service |
+| `sudo systemctl stop algo-trading` | Stop the service |
+| `sudo systemctl start algo-trading` | Start the service |
+
+### 9. Updating the script
+
+When you pull new code, reinstall dependencies and restart the service:
+
+```bash
+cd /opt/algo-trading
+source venv/bin/activate
+git pull
+pip install -r requirements.txt
+sudo systemctl restart algo-trading
+```
+
+### Cost
+
+The `e2-micro` instance is included in Google Cloud's free tier (one per billing account in `us-east1`, `us-central1`, or `us-west1`). Beyond the free tier, it costs approximately $6–8/month. The script uses negligible CPU and network bandwidth since it sleeps most of the time.
