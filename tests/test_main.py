@@ -143,6 +143,56 @@ async def test_reconnect_on_tastytrade_error(monkeypatch):
     mock_reconnect.assert_called_once()
 
 
+# ===================================================================
+# Preflight check
+# ===================================================================
+
+
+async def test_preflight_check_success(monkeypatch):
+    """Preflight passes when credentials and account are valid."""
+    monkeypatch.setattr("config.TASTYTRADE_PROVIDER_SECRET", "real_secret")
+    monkeypatch.setattr("config.TASTYTRADE_REFRESH_TOKEN", "real_token")
+
+    with patch("main.acct.create_session", new_callable=AsyncMock, return_value=_make_session()), \
+         patch("main.acct.get_account", new_callable=AsyncMock, return_value=_make_account()):
+        await main.preflight_check()  # Should not raise
+
+
+async def test_preflight_check_bad_credentials(monkeypatch):
+    """Preflight exits if credentials are empty."""
+    monkeypatch.setattr("config.TASTYTRADE_PROVIDER_SECRET", "")
+    monkeypatch.setattr("config.TASTYTRADE_REFRESH_TOKEN", "real_token")
+
+    with pytest.raises(SystemExit, match="PROVIDER_SECRET"):
+        await main.preflight_check()
+
+
+async def test_preflight_check_no_account(monkeypatch):
+    """Preflight exits if account access fails."""
+    monkeypatch.setattr("config.TASTYTRADE_PROVIDER_SECRET", "real_secret")
+    monkeypatch.setattr("config.TASTYTRADE_REFRESH_TOKEN", "real_token")
+
+    with patch("main.acct.create_session", new_callable=AsyncMock, return_value=_make_session()), \
+         patch("main.acct.get_account", new_callable=AsyncMock, side_effect=RuntimeError("No TastyTrade accounts found")):
+        with pytest.raises(SystemExit, match="No TastyTrade accounts"):
+            await main.preflight_check()
+
+
+async def test_preflight_check_connection_failure(monkeypatch):
+    """Preflight exits if session creation fails."""
+    monkeypatch.setattr("config.TASTYTRADE_PROVIDER_SECRET", "real_secret")
+    monkeypatch.setattr("config.TASTYTRADE_REFRESH_TOKEN", "real_token")
+
+    with patch("main.acct.create_session", new_callable=AsyncMock, side_effect=Exception("Connection refused")):
+        with pytest.raises(SystemExit, match="could not connect"):
+            await main.preflight_check()
+
+
+# ===================================================================
+# Run daily
+# ===================================================================
+
+
 async def test_abort_on_failed_reconnect(monkeypatch):
     """run_daily returns early when reconnect returns None."""
     market_close = datetime(2024, 12, 2, 16, 0, tzinfo=ET)

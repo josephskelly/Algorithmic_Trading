@@ -151,11 +151,12 @@ pip install -r requirements.txt
 The script uses OAuth2 authentication with the tastytrade API. You need a **provider secret** (client secret) and a **refresh token**.
 
 1. **Create a sandbox account** at [developer.tastytrade.com/sandbox/](https://developer.tastytrade.com/sandbox/)
-2. **Create an OAuth application** at the developer portal
+2. **Create a trading account** — after signing in to the sandbox portal, click **"Add New Account"** to create a paper trading account. Without this step, OAuth will succeed but there will be no trading account to use and the script will fail with "No TastyTrade accounts found."
+3. **Create an OAuth application** at the developer portal
    - Set the callback URL to `http://localhost:8000`
-3. **Save the client secret** (provider secret) generated during app creation
-4. **Create a grant** (refresh token) from the OAuth Applications section
-5. **Copy `.env.example` to `.env`** and fill in both values:
+4. **Save the client secret** (provider secret) generated during app creation
+5. **Create a grant** (refresh token) from the OAuth Applications section
+6. **Copy `.env.example` to `.env`** and fill in both values:
 
 ```bash
 cp .env.example .env

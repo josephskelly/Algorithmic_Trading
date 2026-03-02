@@ -21,6 +21,33 @@ TASTYTRADE_PROVIDER_SECRET = os.getenv("TASTYTRADE_PROVIDER_SECRET", "")
 TASTYTRADE_REFRESH_TOKEN = os.getenv("TASTYTRADE_REFRESH_TOKEN", "")
 SANDBOX = True  # Always True — we never trade with real money
 
+
+def validate_credentials() -> None:
+    """Verify TastyTrade OAuth credentials are present and not placeholders.
+
+    Raises SystemExit with an actionable message if credentials are invalid.
+    """
+    problems: list[str] = []
+
+    if not TASTYTRADE_PROVIDER_SECRET or TASTYTRADE_PROVIDER_SECRET == "your_oauth_client_secret":
+        problems.append(
+            "TASTYTRADE_PROVIDER_SECRET is missing or still set to the placeholder value."
+        )
+    if not TASTYTRADE_REFRESH_TOKEN or TASTYTRADE_REFRESH_TOKEN == "your_refresh_token":
+        problems.append(
+            "TASTYTRADE_REFRESH_TOKEN is missing or still set to the placeholder value."
+        )
+
+    if problems:
+        msg = (
+            "TastyTrade credential validation failed:\n"
+            + "\n".join(f"  - {p}" for p in problems)
+            + "\n\nCopy .env.example to .env and fill in your sandbox OAuth credentials."
+            + "\nSee README.md for setup instructions."
+        )
+        raise SystemExit(msg)
+
+
 # ---------------------------------------------------------------------------
 # Trade sizing constants
 # ---------------------------------------------------------------------------

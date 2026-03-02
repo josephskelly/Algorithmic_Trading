@@ -129,6 +129,39 @@ async def run_daily(market_close: datetime) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Startup validation
+# ---------------------------------------------------------------------------
+
+async def preflight_check() -> None:
+    """Validate credentials and account access at startup.
+
+    Exits the process immediately if any check fails, so problems are
+    caught before waiting hours for the trigger time.
+    """
+    logger.info("Running startup preflight checks...")
+
+    # 1. Credential validation (exits on failure)
+    config.validate_credentials()
+    logger.info("  Credentials present")
+
+    # 2. Session + account access
+    try:
+        session = await acct.create_session()
+        account = await acct.get_account(session)
+        logger.info("  Account access verified: %s", account.account_number)
+    except RuntimeError as exc:
+        logger.error("Preflight check failed: %s", exc)
+        raise SystemExit(f"Startup aborted: {exc}") from exc
+    except Exception as exc:
+        logger.error("Preflight check failed (unexpected): %s", exc)
+        raise SystemExit(
+            f"Startup aborted — could not connect to TastyTrade: {exc}"
+        ) from exc
+
+    logger.info("Preflight checks passed")
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -137,6 +170,9 @@ async def main() -> None:
     logger.info("Algorithmic trading script started")
     logger.info("ETFs: %s", config.ETFS)
     logger.info("Sandbox mode: %s", config.SANDBOX)
+
+    # --- Fail fast: verify credentials and account before entering the loop ---
+    await preflight_check()
 
     while True:
         now = datetime.now(scheduler.ET)
@@ -170,6 +206,10 @@ async def main() -> None:
         # Execute
         try:
             await run_daily(market_close)
+        except RuntimeError as exc:
+            # Fatal: account/credential issues won't self-resolve overnight
+            logger.error("Fatal error in daily run: %s", exc)
+            raise SystemExit(f"Aborting: {exc}") from exc
         except Exception as exc:
             logger.error("Daily run failed: %s", exc, exc_info=True)
 

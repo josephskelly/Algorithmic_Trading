@@ -76,7 +76,7 @@ class Account:
         self.account_number = account_number
 
     @classmethod
-    async def get(cls, session):
+    async def get(cls, session, include_closed=False):
         return [cls()]
 
     async def get_balances(self, session):

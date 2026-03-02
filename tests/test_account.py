@@ -130,7 +130,28 @@ async def test_get_account_returns_first():
 async def test_get_account_empty_raises():
     session = Session()
     with patch.object(Account, "get", new_callable=AsyncMock, return_value=[]):
-        with pytest.raises(RuntimeError, match="No open accounts"):
+        with pytest.raises(RuntimeError, match="No TastyTrade accounts found"):
+            await acct.get_account(session)
+
+
+async def test_get_account_all_closed():
+    """When open accounts is empty but closed accounts exist, error says 'closed'."""
+    session = Session()
+    closed_account = Account(account_number="CLOSED001")
+
+    async def _mock_get(session, include_closed=False):
+        return [] if not include_closed else [closed_account]
+
+    with patch.object(Account, "get", side_effect=_mock_get):
+        with pytest.raises(RuntimeError, match="accounts are closed"):
+            await acct.get_account(session)
+
+
+async def test_get_account_none_exist():
+    """When no accounts exist at all, error says 'No TastyTrade accounts found'."""
+    session = Session()
+    with patch.object(Account, "get", new_callable=AsyncMock, return_value=[]):
+        with pytest.raises(RuntimeError, match="No TastyTrade accounts found"):
             await acct.get_account(session)
 
 
