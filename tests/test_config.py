@@ -40,3 +40,47 @@ def test_constants():
 
 def test_sandbox_true():
     assert config.SANDBOX is True
+
+
+# --- validate_credentials ---
+
+
+def test_validate_credentials_valid(monkeypatch):
+    monkeypatch.setattr(config, "TASTYTRADE_PROVIDER_SECRET", "real_secret_abc123")
+    monkeypatch.setattr(config, "TASTYTRADE_REFRESH_TOKEN", "real_token_xyz789")
+    config.validate_credentials()  # Should not raise
+
+
+def test_validate_credentials_empty_secret(monkeypatch):
+    monkeypatch.setattr(config, "TASTYTRADE_PROVIDER_SECRET", "")
+    monkeypatch.setattr(config, "TASTYTRADE_REFRESH_TOKEN", "real_token_xyz789")
+    with pytest.raises(SystemExit, match="PROVIDER_SECRET"):
+        config.validate_credentials()
+
+
+def test_validate_credentials_empty_token(monkeypatch):
+    monkeypatch.setattr(config, "TASTYTRADE_PROVIDER_SECRET", "real_secret_abc123")
+    monkeypatch.setattr(config, "TASTYTRADE_REFRESH_TOKEN", "")
+    with pytest.raises(SystemExit, match="REFRESH_TOKEN"):
+        config.validate_credentials()
+
+
+def test_validate_credentials_both_empty(monkeypatch):
+    monkeypatch.setattr(config, "TASTYTRADE_PROVIDER_SECRET", "")
+    monkeypatch.setattr(config, "TASTYTRADE_REFRESH_TOKEN", "")
+    with pytest.raises(SystemExit, match="PROVIDER_SECRET"):
+        config.validate_credentials()
+
+
+def test_validate_credentials_placeholder_secret(monkeypatch):
+    monkeypatch.setattr(config, "TASTYTRADE_PROVIDER_SECRET", "your_oauth_client_secret")
+    monkeypatch.setattr(config, "TASTYTRADE_REFRESH_TOKEN", "real_token_xyz789")
+    with pytest.raises(SystemExit, match="placeholder"):
+        config.validate_credentials()
+
+
+def test_validate_credentials_placeholder_token(monkeypatch):
+    monkeypatch.setattr(config, "TASTYTRADE_PROVIDER_SECRET", "real_secret_abc123")
+    monkeypatch.setattr(config, "TASTYTRADE_REFRESH_TOKEN", "your_refresh_token")
+    with pytest.raises(SystemExit, match="placeholder"):
+        config.validate_credentials()

@@ -47,13 +47,33 @@ async def create_session() -> Session:
 # ---------------------------------------------------------------------------
 
 async def get_account(session: Session) -> Account:
-    """Return the first open account for the authenticated user."""
+    """Return the first open account for the authenticated user.
+
+    Raises RuntimeError with an actionable message if no usable account exists.
+    """
     accounts = await Account.get(session)
-    if not accounts:
-        raise RuntimeError("No open accounts found on this TastyTrade user")
-    account = accounts[0]
-    logger.info("Using account %s", account.account_number)
-    return account
+    if accounts:
+        account = accounts[0]
+        logger.info("Using account %s", account.account_number)
+        return account
+
+    # No open accounts — determine why
+    all_accounts = await Account.get(session, include_closed=True)
+    if all_accounts:
+        closed_numbers = [a.account_number for a in all_accounts]
+        raise RuntimeError(
+            f"All TastyTrade accounts are closed: {closed_numbers}. "
+            "Open a new sandbox account at https://developer.tastytrade.com/sandbox/ "
+            "or contact TastyTrade support to reactivate."
+        )
+
+    raise RuntimeError(
+        "No TastyTrade accounts found (open or closed). "
+        "This usually means the sandbox account was never fully set up — "
+        "you must click 'Add New Account' in the sandbox portal to create a trading account. "
+        "Visit https://developer.tastytrade.com/sandbox/ to create one, "
+        "then update your .env credentials."
+    )
 
 
 async def get_balances(session: Session, account: Account) -> AccountBalance:
