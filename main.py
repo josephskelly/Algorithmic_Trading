@@ -15,6 +15,8 @@ import order_manager as om
 import scheduler
 from strategy import TradeDirection, compute_trade
 
+PRETRADE_FETCH_ATTEMPTS = 6
+
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
@@ -40,35 +42,56 @@ async def run_daily(market_close: datetime) -> None:
     date_str = market_close.strftime("%Y-%m-%d")
     logger.info("=== Trading run for %s ===", date_str)
 
-    # --- Connect ---
-    session = await acct.create_session()
-    account = await acct.get_account(session)
+    # --- Connect + fetch pre-trade data (with retry) ---
+    session = None
+    for attempt in range(1, PRETRADE_FETCH_ATTEMPTS + 1):
+        try:
+            if session is None:
+                session = await acct.create_session()
+            account = await acct.get_account(session)
 
-    # --- Account data ---
-    balances = await acct.get_balances(session, account)
-    net_liq = balances.net_liquidating_value
-    cash_available = balances.cash_balance
-    logger.info("Net liquidation value: $%.2f", net_liq)
-    logger.info("Cash available: $%.2f", cash_available)
+            # Account data
+            balances = await acct.get_balances(session, account)
+            net_liq = balances.net_liquidating_value
+            cash_available = balances.cash_balance
+            logger.info("Net liquidation value: $%.2f", net_liq)
+            logger.info("Cash available: $%.2f", cash_available)
+
+            # Fractional eligibility (batch lookup)
+            symbols = config.ETFS
+            equities = await Equity.get(session, symbols)
+            if not isinstance(equities, list):
+                equities = [equities]
+            eligible_map: dict[str, bool] = {
+                eq.symbol: bool(eq.is_fractional_quantity_eligible)
+                for eq in equities
+            }
+
+            # Market data
+            price_changes = await md.fetch_price_changes(session, symbols)
+            break  # All pre-trade data fetched successfully
+        except Exception as exc:
+            logger.error(
+                "Pre-trade data fetch failed (attempt %d/%d): %s",
+                attempt, PRETRADE_FETCH_ATTEMPTS, exc,
+            )
+            if attempt == PRETRADE_FETCH_ATTEMPTS:
+                logger.error("All pre-trade fetch attempts failed — aborting run")
+                return
+            now = datetime.now(market_close.tzinfo)
+            if now >= market_close:
+                logger.error("Past market close — aborting run")
+                return
+            await asyncio.sleep(om.RECONNECT_DELAY_SECONDS)
+            session = await om.reconnect(market_close)
+            if session is None:
+                logger.error("Reconnect failed — aborting run")
+                return
 
     # --- Traded-today set ---
     traded = om.load_traded_today(date_str)
     if traded:
         logger.info("Already traded today: %s", traded)
-
-    # --- Fractional eligibility (batch lookup) ---
-    symbols = config.ETFS
-    equities = await Equity.get(session, symbols)
-    # Handle single equity (if only one symbol) — normalise to list
-    if not isinstance(equities, list):
-        equities = [equities]
-    eligible_map: dict[str, bool] = {
-        eq.symbol: bool(eq.is_fractional_quantity_eligible)
-        for eq in equities
-    }
-
-    # --- Market data ---
-    price_changes = await md.fetch_price_changes(session, symbols)
 
     # --- Process each ETF ---
     for symbol in symbols:
