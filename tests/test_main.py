@@ -193,6 +193,85 @@ async def test_preflight_check_connection_failure(monkeypatch):
 # ===================================================================
 
 
+async def test_pretrade_retry_succeeds_on_second_attempt(monkeypatch):
+    """Pre-trade fetch retries after transient 503 and succeeds."""
+    market_close = datetime(2099, 12, 2, 16, 0, tzinfo=ET)
+    symbols = ["DIG"]
+    monkeypatch.setattr("config.ETFS", symbols)
+
+    equities = [Equity(symbol="DIG")]
+    price_changes = _make_price_changes(symbols)
+    balances = _make_balances()
+
+    # fetch_price_changes fails on first call (503), succeeds on second
+    mock_fetch = AsyncMock(side_effect=[TastytradeError("503"), price_changes])
+
+    with patch("main.acct.create_session", new_callable=AsyncMock, return_value=_make_session()), \
+         patch("main.acct.get_account", new_callable=AsyncMock, return_value=_make_account()), \
+         patch("main.acct.get_balances", new_callable=AsyncMock, return_value=balances), \
+         patch("main.Equity.get", new_callable=AsyncMock, return_value=equities), \
+         patch("main.md.fetch_price_changes", mock_fetch), \
+         patch("main.om.load_traded_today", return_value=set()), \
+         patch("main.om.execute_trade", new_callable=AsyncMock, return_value=Decimal("165")) as mock_exec, \
+         patch("main.om.mark_traded"), \
+         patch("main.om.reconnect", new_callable=AsyncMock, return_value=_make_session()) as mock_reconnect, \
+         patch("main.asyncio.sleep", new_callable=AsyncMock):
+        await main.run_daily(market_close)
+    # Trade should still execute after successful retry
+    assert mock_exec.call_count == 1
+    mock_reconnect.assert_called_once()
+
+
+async def test_pretrade_retry_all_attempts_fail(monkeypatch):
+    """run_daily aborts when all pre-trade fetch attempts fail."""
+    market_close = datetime(2099, 12, 2, 16, 0, tzinfo=ET)
+    symbols = ["DIG"]
+    monkeypatch.setattr("config.ETFS", symbols)
+
+    # All 6 attempts fail
+    mock_fetch = AsyncMock(side_effect=TastytradeError("503"))
+
+    with patch("main.acct.create_session", new_callable=AsyncMock, return_value=_make_session()), \
+         patch("main.acct.get_account", new_callable=AsyncMock, return_value=_make_account()), \
+         patch("main.acct.get_balances", new_callable=AsyncMock, return_value=_make_balances()), \
+         patch("main.Equity.get", new_callable=AsyncMock, return_value=[Equity(symbol="DIG")]), \
+         patch("main.md.fetch_price_changes", mock_fetch), \
+         patch("main.om.load_traded_today", return_value=set()), \
+         patch("main.om.execute_trade", new_callable=AsyncMock) as mock_exec, \
+         patch("main.om.mark_traded") as mock_mark, \
+         patch("main.om.reconnect", new_callable=AsyncMock, return_value=_make_session()), \
+         patch("main.asyncio.sleep", new_callable=AsyncMock):
+        await main.run_daily(market_close)
+    # No trades should execute
+    mock_exec.assert_not_called()
+    mock_mark.assert_not_called()
+
+
+async def test_pretrade_retry_aborts_past_market_close(monkeypatch):
+    """Pre-trade retry aborts if market close has passed."""
+    # Set market_close in the past so the time check triggers
+    market_close = datetime(2024, 12, 2, 15, 50, tzinfo=ET)
+    symbols = ["DIG"]
+    monkeypatch.setattr("config.ETFS", symbols)
+
+    # First attempt fails, then time check should abort
+    mock_fetch = AsyncMock(side_effect=TastytradeError("503"))
+
+    with patch("main.acct.create_session", new_callable=AsyncMock, return_value=_make_session()), \
+         patch("main.acct.get_account", new_callable=AsyncMock, return_value=_make_account()), \
+         patch("main.acct.get_balances", new_callable=AsyncMock, return_value=_make_balances()), \
+         patch("main.Equity.get", new_callable=AsyncMock, return_value=[Equity(symbol="DIG")]), \
+         patch("main.md.fetch_price_changes", mock_fetch), \
+         patch("main.om.load_traded_today", return_value=set()), \
+         patch("main.om.execute_trade", new_callable=AsyncMock) as mock_exec, \
+         patch("main.om.mark_traded") as mock_mark, \
+         patch("main.asyncio.sleep", new_callable=AsyncMock):
+        await main.run_daily(market_close)
+    # Should abort without trading
+    mock_exec.assert_not_called()
+    mock_mark.assert_not_called()
+
+
 async def test_abort_on_failed_reconnect(monkeypatch):
     """run_daily returns early when reconnect returns None."""
     market_close = datetime(2024, 12, 2, 16, 0, tzinfo=ET)
