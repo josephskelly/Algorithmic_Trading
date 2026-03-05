@@ -22,6 +22,7 @@ import pytest
 # Create module hierarchy
 _tt = types.ModuleType("tastytrade")
 _tt_account = types.ModuleType("tastytrade.account")
+_tt_dxfeed = types.ModuleType("tastytrade.dxfeed")
 _tt_instruments = types.ModuleType("tastytrade.instruments")
 _tt_market_data = types.ModuleType("tastytrade.market_data")
 _tt_order = types.ModuleType("tastytrade.order")
@@ -146,6 +147,78 @@ class PlacedOrderResponse:
     pass
 
 
+@dataclass
+class Quote:
+    """Stub for tastytrade.dxfeed.Quote."""
+    event_symbol: str = "SPY"
+    bid_price: Decimal = Decimal("100.00")
+    ask_price: Decimal = Decimal("100.10")
+    sequence: int = 0
+    time_nano_part: int = 0
+    bid_time: int = 0
+    bid_exchange_code: str = "Q"
+    ask_time: int = 0
+    ask_exchange_code: str = "Q"
+    bid_size: Decimal = Decimal("100")
+    ask_size: Decimal = Decimal("100")
+
+    @property
+    def mid_price(self) -> Decimal:
+        return (self.bid_price + self.ask_price) / 2
+
+
+@dataclass
+class Summary:
+    """Stub for tastytrade.dxfeed.Summary."""
+    event_symbol: str = "SPY"
+    day_id: int = 0
+    day_close_price_type: str = "FINAL"
+    prev_day_id: int = 0
+    prev_day_close_price_type: str = "FINAL"
+    open_interest: int = 0
+    prev_day_close_price: Decimal | None = Decimal("99.00")
+    day_open_price: Decimal | None = None
+    day_high_price: Decimal | None = None
+    day_low_price: Decimal | None = None
+    day_close_price: Decimal | None = None
+    prev_day_volume: Decimal | None = None
+
+
+class DXLinkStreamer:
+    """Stub for tastytrade.DXLinkStreamer — async context manager."""
+
+    def __init__(self, session):
+        self.session = session
+        self._quotes: list[Quote] = []
+        self._summaries: list[Summary] = []
+        self._quote_idx = 0
+        self._summary_idx = 0
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        pass
+
+    async def subscribe(self, event_class, symbols):
+        pass
+
+    def get_event_nowait(self, event_class):
+        if event_class is Quote:
+            if self._quote_idx < len(self._quotes):
+                q = self._quotes[self._quote_idx]
+                self._quote_idx += 1
+                return q
+            return None
+        if event_class is Summary:
+            if self._summary_idx < len(self._summaries):
+                s = self._summaries[self._summary_idx]
+                self._summary_idx += 1
+                return s
+            return None
+        return None
+
+
 class TastytradeError(Exception):
     pass
 
@@ -163,6 +236,7 @@ async def _get_market_data_by_type(session, equities=None):
 # --- Wire modules into sys.modules --------------------------------
 
 _tt.Session = Session
+_tt.DXLinkStreamer = DXLinkStreamer
 _tt.VERSION = "0.0.0-test"
 sys.modules["tastytrade"] = _tt
 
@@ -170,6 +244,11 @@ _tt_account.Account = Account
 _tt_account.AccountBalance = AccountBalance
 _tt.account = _tt_account
 sys.modules["tastytrade.account"] = _tt_account
+
+_tt_dxfeed.Quote = Quote
+_tt_dxfeed.Summary = Summary
+_tt.dxfeed = _tt_dxfeed
+sys.modules["tastytrade.dxfeed"] = _tt_dxfeed
 
 _tt_instruments.Equity = Equity
 _tt.instruments = _tt_instruments

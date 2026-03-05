@@ -1,14 +1,19 @@
 """Market data: fetch prices and compute percentage changes."""
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from decimal import Decimal
 
-from tastytrade import Session
+from tastytrade import DXLinkStreamer, Session
+from tastytrade.dxfeed import Quote, Summary
 from tastytrade.market_data import get_market_data, MarketData
 from tastytrade.order import InstrumentType
 
 logger = logging.getLogger(__name__)
+
+# Seconds to wait for streamer events before giving up.
+_STREAMER_TIMEOUT = 15
 
 
 @dataclass
@@ -21,24 +26,143 @@ class PriceChange:
     pct_change: Decimal  # e.g. -1.5 means dropped 1.5%
 
 
-async def fetch_price_changes(
-    session: Session, symbols: list[str]
-) -> dict[str, PriceChange]:
-    """Fetch market data for each symbol and compute % change from previous close.
+# ---------------------------------------------------------------------------
+# REST-based market data (primary)
+# ---------------------------------------------------------------------------
 
-    Returns a dict keyed by symbol.  Symbols that lack price data are logged
-    and omitted from the result.
+async def _fetch_rest(
+    session: Session, symbols: list[str]
+) -> dict[str, MarketData]:
+    """Fetch market data per symbol via the REST API.
+
+    Returns a dict of symbol → MarketData for every symbol that succeeded.
     """
-    # Fetch individually — the batch /market-data/by-type endpoint returns 503
-    # on the sandbox, but the per-symbol endpoint works.
     data_by_symbol: dict[str, MarketData] = {}
     for symbol in symbols:
         try:
             data = await get_market_data(session, symbol, InstrumentType.EQUITY)
             data_by_symbol[symbol] = data
         except Exception:
-            logger.warning("Failed to fetch market data for %s — skipping", symbol)
+            logger.warning("REST market data failed for %s", symbol)
+    return data_by_symbol
 
+
+# ---------------------------------------------------------------------------
+# DXLink streamer fallback
+# ---------------------------------------------------------------------------
+
+async def _fetch_streamer(
+    session: Session, symbols: list[str]
+) -> dict[str, PriceChange]:
+    """Fetch quotes + previous close via the DXLink WebSocket streamer.
+
+    Used as a fallback when the REST market-data endpoints return 503.
+    Returns a dict of symbol → PriceChange.
+    """
+    quotes: dict[str, Quote] = {}
+    summaries: dict[str, Summary] = {}
+    symbol_set = set(symbols)
+    needed = len(symbol_set)
+
+    async with DXLinkStreamer(session) as streamer:
+        await streamer.subscribe(Quote, symbols)
+        await streamer.subscribe(Summary, symbols)
+
+        deadline = asyncio.get_event_loop().time() + _STREAMER_TIMEOUT
+
+        while (len(quotes) < needed or len(summaries) < needed):
+            remaining = deadline - asyncio.get_event_loop().time()
+            if remaining <= 0:
+                break
+
+            # Drain available events from both queues
+            for _ in range(needed * 2):
+                q = streamer.get_event_nowait(Quote)
+                if q is not None and q.event_symbol in symbol_set:
+                    quotes[q.event_symbol] = q
+                s = streamer.get_event_nowait(Summary)
+                if s is not None and s.event_symbol in symbol_set:
+                    summaries[s.event_symbol] = s
+
+            if len(quotes) >= needed and len(summaries) >= needed:
+                break
+
+            # Brief sleep to let more events arrive
+            await asyncio.sleep(0.25)
+
+    results: dict[str, PriceChange] = {}
+    for symbol in symbols:
+        q = quotes.get(symbol)
+        s = summaries.get(symbol)
+        if q is None or s is None:
+            logger.warning("Streamer: incomplete data for %s — skipping", symbol)
+            continue
+
+        current = q.mid_price
+        prev = s.prev_day_close_price
+
+        if current is None or prev is None or prev == 0:
+            logger.warning(
+                "Streamer: %s missing price data (current=%s, prev_close=%s) — skipping",
+                symbol, current, prev,
+            )
+            continue
+
+        pct = (current - prev) / prev * 100
+        results[symbol] = PriceChange(
+            symbol=symbol,
+            current_price=current,
+            previous_close=prev,
+            pct_change=pct,
+        )
+        logger.debug(
+            "Streamer %s: current=%.4f  prev_close=%.4f  pct_change=%.2f%%",
+            symbol, current, prev, pct,
+        )
+
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+async def fetch_price_changes(
+    session: Session, symbols: list[str]
+) -> dict[str, PriceChange]:
+    """Fetch market data for *symbols* and compute % change from previous close.
+
+    Tries the REST market-data endpoint first.  If every symbol fails (e.g.
+    sandbox returns 503 for all), falls back to the DXLink WebSocket streamer.
+
+    Returns a dict keyed by symbol.  Symbols that lack price data are logged
+    and omitted from the result.
+    """
+    # --- Primary: REST endpoint ---
+    data_by_symbol = await _fetch_rest(session, symbols)
+
+    if data_by_symbol:
+        # At least some REST data came back — use it.
+        return _build_price_changes(data_by_symbol, symbols)
+
+    # --- Fallback: DXLink streamer ---
+    logger.warning(
+        "REST market data returned nothing for all %d symbols — "
+        "falling back to DXLink streamer",
+        len(symbols),
+    )
+    try:
+        return await _fetch_streamer(session, symbols)
+    except Exception as exc:
+        logger.error("DXLink streamer fallback also failed: %s", exc)
+        return {}
+
+
+def _build_price_changes(
+    data_by_symbol: dict[str, MarketData],
+    symbols: list[str],
+) -> dict[str, PriceChange]:
+    """Convert REST MarketData objects into PriceChange results."""
     results: dict[str, PriceChange] = {}
 
     for symbol in symbols:
@@ -53,9 +177,7 @@ async def fetch_price_changes(
         if current is None or prev is None or prev == 0:
             logger.warning(
                 "%s missing price data (current=%s, prev_close=%s) — skipping",
-                symbol,
-                current,
-                prev,
+                symbol, current, prev,
             )
             continue
 
@@ -68,10 +190,7 @@ async def fetch_price_changes(
         )
         logger.debug(
             "%s: current=%.4f  prev_close=%.4f  pct_change=%.2f%%",
-            symbol,
-            current,
-            prev,
-            pct,
+            symbol, current, prev, pct,
         )
 
     return results
