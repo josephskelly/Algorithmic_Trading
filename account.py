@@ -5,7 +5,7 @@ from decimal import Decimal
 from math import floor
 
 import config
-from tastytrade import Session
+from tastytrade import Session, VERSION as TT_SDK_VERSION
 from tastytrade.account import Account, AccountBalance
 from tastytrade.instruments import Equity
 from tastytrade.market_data import MarketData, get_market_data
@@ -37,6 +37,11 @@ async def create_session() -> Session:
         provider_secret=config.TASTYTRADE_PROVIDER_SECRET,
         refresh_token=config.TASTYTRADE_REFRESH_TOKEN,
         is_test=config.SANDBOX,
+    )
+    # TastyTrade requires User-Agent in <product>/<version> format.
+    # The SDK does not set one; missing it can trigger 503 from their proxy.
+    session._client.headers["User-Agent"] = (
+        f"algorithmic-trading/1.0 tastytrade-sdk/{TT_SDK_VERSION}"
     )
     logger.info("TastyTrade session created (sandbox=%s)", config.SANDBOX)
     return session

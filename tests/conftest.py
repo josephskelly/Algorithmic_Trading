@@ -67,6 +67,7 @@ class Session:
         self.provider_secret = kwargs.get("provider_secret", "")
         self.refresh_token = kwargs.get("refresh_token", "")
         self.is_test = kwargs.get("is_test", True)
+        self._client = types.SimpleNamespace(headers={})
 
 
 class Account:
@@ -162,6 +163,7 @@ async def _get_market_data_by_type(session, equities=None):
 # --- Wire modules into sys.modules --------------------------------
 
 _tt.Session = Session
+_tt.VERSION = "0.0.0-test"
 sys.modules["tastytrade"] = _tt
 
 _tt_account.Account = Account
