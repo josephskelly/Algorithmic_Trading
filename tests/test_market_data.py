@@ -5,11 +5,15 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from tests.conftest import MarketData, Session
+from tests.conftest import DXLinkStreamer, MarketData, Quote, Session, Summary
 
 import market_data as md
 from market_data import PriceChange
 
+
+# ---------------------------------------------------------------------------
+# Helper: mock get_market_data via side_effect
+# ---------------------------------------------------------------------------
 
 def _make_side_effect(data_map: dict[str, MarketData]):
     """Return an async side_effect that looks up MarketData by symbol."""
@@ -21,6 +25,10 @@ def _make_side_effect(data_map: dict[str, MarketData]):
 
     return _side_effect
 
+
+# ---------------------------------------------------------------------------
+# REST endpoint tests (primary path)
+# ---------------------------------------------------------------------------
 
 async def test_normal_price_change():
     data = {"DIG": MarketData(symbol="DIG", last=Decimal("101"), mark=Decimal("101"), prev_close=Decimal("100"))}
@@ -40,7 +48,9 @@ async def test_falls_back_to_mark():
 
 async def test_skips_missing_symbol():
     # get_market_data raises for unknown symbol — fetch_price_changes catches it
-    with patch("market_data.get_market_data", new_callable=AsyncMock, side_effect=_make_side_effect({})):
+    # With no REST data AND streamer fallback also failing, result is empty
+    with patch("market_data.get_market_data", new_callable=AsyncMock, side_effect=_make_side_effect({})), \
+         patch("market_data._fetch_streamer", new_callable=AsyncMock, return_value={}):
         result = await md.fetch_price_changes(Session(), ["DIG"])
     assert "DIG" not in result
 
@@ -85,3 +95,80 @@ async def test_multiple_symbols():
     assert result["DIG"].pct_change == Decimal("1")
     assert result["ROM"].pct_change == Decimal("0")
     assert result["UYG"].pct_change == Decimal("-4")
+
+
+# ---------------------------------------------------------------------------
+# DXLink streamer fallback tests
+# ---------------------------------------------------------------------------
+
+async def test_streamer_fallback_when_rest_fails():
+    """When REST returns nothing for all symbols, fall back to streamer."""
+    streamer_result = {
+        "DIG": PriceChange(
+            symbol="DIG",
+            current_price=Decimal("101"),
+            previous_close=Decimal("100"),
+            pct_change=Decimal("1"),
+        )
+    }
+    with patch("market_data.get_market_data", new_callable=AsyncMock, side_effect=Exception("503")), \
+         patch("market_data._fetch_streamer", new_callable=AsyncMock, return_value=streamer_result):
+        result = await md.fetch_price_changes(Session(), ["DIG"])
+    assert "DIG" in result
+    assert result["DIG"].pct_change == Decimal("1")
+
+
+async def test_streamer_fallback_also_fails():
+    """When both REST and streamer fail, return empty dict."""
+    with patch("market_data.get_market_data", new_callable=AsyncMock, side_effect=Exception("503")), \
+         patch("market_data._fetch_streamer", new_callable=AsyncMock, side_effect=Exception("WebSocket failed")):
+        result = await md.fetch_price_changes(Session(), ["DIG"])
+    assert result == {}
+
+
+async def test_no_streamer_fallback_when_rest_partial():
+    """When REST returns data for some symbols, do NOT fall back to streamer."""
+    data = {"DIG": MarketData(symbol="DIG", last=Decimal("101"), mark=Decimal("101"), prev_close=Decimal("100"))}
+    with patch("market_data.get_market_data", new_callable=AsyncMock, side_effect=_make_side_effect(data)), \
+         patch("market_data._fetch_streamer", new_callable=AsyncMock) as mock_streamer:
+        result = await md.fetch_price_changes(Session(), ["DIG", "ROM"])
+    # DIG should succeed, ROM should be missing, but streamer should NOT be called
+    assert "DIG" in result
+    assert "ROM" not in result
+    mock_streamer.assert_not_called()
+
+
+async def test_fetch_streamer_builds_price_changes():
+    """Test _fetch_streamer builds PriceChange from Quote + Summary events."""
+    streamer = DXLinkStreamer(Session())
+    streamer._quotes = [
+        Quote(event_symbol="DIG", bid_price=Decimal("100"), ask_price=Decimal("102")),
+    ]
+    streamer._summaries = [
+        Summary(event_symbol="DIG", prev_day_close_price=Decimal("99")),
+    ]
+
+    with patch("market_data.DXLinkStreamer", return_value=streamer):
+        result = await md._fetch_streamer(Session(), ["DIG"])
+
+    assert "DIG" in result
+    # mid_price = (100 + 102) / 2 = 101, prev_close = 99
+    expected_pct = (Decimal("101") - Decimal("99")) / Decimal("99") * 100
+    assert result["DIG"].current_price == Decimal("101")
+    assert result["DIG"].previous_close == Decimal("99")
+    assert result["DIG"].pct_change == expected_pct
+
+
+async def test_fetch_streamer_skips_incomplete():
+    """Streamer skips symbols missing either Quote or Summary."""
+    streamer = DXLinkStreamer(Session())
+    # Only provide a Quote for DIG, no Summary
+    streamer._quotes = [
+        Quote(event_symbol="DIG", bid_price=Decimal("100"), ask_price=Decimal("102")),
+    ]
+    streamer._summaries = []
+
+    with patch("market_data.DXLinkStreamer", return_value=streamer):
+        result = await md._fetch_streamer(Session(), ["DIG"])
+
+    assert "DIG" not in result
