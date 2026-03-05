@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from tastytrade import Session
-from tastytrade.market_data import get_market_data_by_type, MarketData
+from tastytrade.market_data import get_market_data, MarketData
 from tastytrade.order import InstrumentType
 
 logger = logging.getLogger(__name__)
@@ -24,17 +24,20 @@ class PriceChange:
 async def fetch_price_changes(
     session: Session, symbols: list[str]
 ) -> dict[str, PriceChange]:
-    """Batch-fetch market data for *symbols* and compute % change from previous close.
+    """Fetch market data for each symbol and compute % change from previous close.
 
     Returns a dict keyed by symbol.  Symbols that lack price data are logged
     and omitted from the result.
     """
-    data_list: list[MarketData] = await get_market_data_by_type(
-        session, equities=symbols
-    )
-
-    # Index the response by symbol
-    data_by_symbol: dict[str, MarketData] = {d.symbol: d for d in data_list}
+    # Fetch individually — the batch /market-data/by-type endpoint returns 503
+    # on the sandbox, but the per-symbol endpoint works.
+    data_by_symbol: dict[str, MarketData] = {}
+    for symbol in symbols:
+        try:
+            data = await get_market_data(session, symbol, InstrumentType.EQUITY)
+            data_by_symbol[symbol] = data
+        except Exception:
+            logger.warning("Failed to fetch market data for %s — skipping", symbol)
 
     results: dict[str, PriceChange] = {}
 
