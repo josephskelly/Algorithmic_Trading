@@ -117,12 +117,53 @@ async def test_buy_exceeds_cash():
 
 
 async def test_buy_not_fractional():
+    # $165 / $50 = 3 whole shares
     decision = _make_decision(TradeDirection.BUY, "165")
     price_info = _make_price_info()
-    with patch("account.place_notional_order", new_callable=AsyncMock) as mock_place:
+    with patch("account.place_share_order", new_callable=AsyncMock, return_value=PlacedOrderResponse()):
+        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), False)
+    assert result == Decimal("3") * Decimal("50")
+
+
+async def test_buy_not_fractional_zero_shares():
+    # $30 / $50 = 0.6 -> floor = 0 shares -> skip
+    decision = _make_decision(TradeDirection.BUY, "30")
+    price_info = _make_price_info(current="50")
+    with patch("account.place_share_order", new_callable=AsyncMock) as mock_place:
         result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), False)
     assert result is None
     mock_place.assert_not_called()
+
+
+async def test_buy_notional_fallback():
+    # Notional fails with fractional error -> falls back to whole shares
+    decision = _make_decision(TradeDirection.BUY, "165")
+    price_info = _make_price_info()
+    with patch("account.place_notional_order", new_callable=AsyncMock, side_effect=Exception("fractional_equity_trading_not_supported")), \
+         patch("account.place_share_order", new_callable=AsyncMock, return_value=PlacedOrderResponse()) as mock_share:
+        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), True)
+    assert result == Decimal("3") * Decimal("50")
+    mock_share.assert_called_once()
+
+
+async def test_sell_notional_fallback():
+    # Notional fails with fractional error -> falls back to whole shares
+    decision = _make_decision(TradeDirection.SELL, "150")
+    price_info = _make_price_info(current="50")
+    with patch("account.place_notional_order", new_callable=AsyncMock, side_effect=Exception("fractional_equity_trading_not_supported")), \
+         patch("account.place_share_order", new_callable=AsyncMock, return_value=PlacedOrderResponse()) as mock_share:
+        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), True)
+    assert result == Decimal("3") * Decimal("50")
+    mock_share.assert_called_once()
+
+
+async def test_buy_notional_non_fractional_error_raises():
+    # Non-fractional error should still propagate
+    decision = _make_decision(TradeDirection.BUY, "165")
+    price_info = _make_price_info()
+    with patch("account.place_notional_order", new_callable=AsyncMock, side_effect=Exception("network timeout")), \
+         pytest.raises(Exception, match="network timeout"):
+        await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), True)
 
 
 async def test_sell_fractional():

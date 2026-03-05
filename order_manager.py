@@ -149,25 +149,53 @@ async def execute_trade(
 
     # --- BUY ---
     if decision.direction == TradeDirection.BUY:
-        if not fractional_eligible:
-            logger.info("%s: not fractional-eligible — skip buy", symbol)
+        if fractional_eligible:
+            try:
+                await acct.place_notional_order(
+                    session, account, symbol,
+                    OrderAction.BUY_TO_OPEN, amount, dry_run=dry_run,
+                )
+                return amount
+            except Exception as exc:
+                if "fractional" not in str(exc).lower():
+                    raise
+                logger.warning(
+                    "%s: notional order rejected, falling back to whole shares",
+                    symbol,
+                )
+
+        # Fallback / non-fractional: convert to whole shares
+        shares = floor(amount / price_info.current_price)
+        if shares <= 0:
+            logger.info(
+                "%s: trade amount $%.2f → 0 whole shares at $%.2f — skip buy",
+                symbol, amount, price_info.current_price,
+            )
             return None
 
-        await acct.place_notional_order(
+        await acct.place_share_order(
             session, account, symbol,
-            OrderAction.BUY_TO_OPEN, amount, dry_run=dry_run,
+            OrderAction.BUY_TO_OPEN, shares, dry_run=dry_run,
         )
-        return amount
+        return Decimal(shares) * price_info.current_price
 
     # --- SELL ---
     if fractional_eligible:
-        await acct.place_notional_order(
-            session, account, symbol,
-            OrderAction.SELL_TO_CLOSE, amount, dry_run=dry_run,
-        )
-        return amount
+        try:
+            await acct.place_notional_order(
+                session, account, symbol,
+                OrderAction.SELL_TO_CLOSE, amount, dry_run=dry_run,
+            )
+            return amount
+        except Exception as exc:
+            if "fractional" not in str(exc).lower():
+                raise
+            logger.warning(
+                "%s: notional order rejected, falling back to whole shares",
+                symbol,
+            )
 
-    # Not fractional-eligible: convert to whole shares
+    # Fallback / non-fractional: convert to whole shares
     shares = floor(amount / price_info.current_price)
     if shares <= 0:
         logger.info(
