@@ -129,6 +129,7 @@ async def execute_trade(
     price_info: PriceChange,
     cash_available: Decimal,
     fractional_eligible: bool,
+    dry_run: bool = False,
 ) -> Decimal | None:
     """Execute a single trade based on the strategy decision.
 
@@ -154,7 +155,7 @@ async def execute_trade(
 
         await acct.place_notional_order(
             session, account, symbol,
-            OrderAction.BUY_TO_OPEN, amount, dry_run=False,
+            OrderAction.BUY_TO_OPEN, amount, dry_run=dry_run,
         )
         return amount
 
@@ -162,7 +163,7 @@ async def execute_trade(
     if fractional_eligible:
         await acct.place_notional_order(
             session, account, symbol,
-            OrderAction.SELL_TO_CLOSE, amount, dry_run=False,
+            OrderAction.SELL_TO_CLOSE, amount, dry_run=dry_run,
         )
         return amount
 
@@ -177,6 +178,6 @@ async def execute_trade(
 
     await acct.place_share_order(
         session, account, symbol,
-        OrderAction.SELL_TO_CLOSE, shares, dry_run=False,
+        OrderAction.SELL_TO_CLOSE, shares, dry_run=dry_run,
     )
     return Decimal(shares) * price_info.current_price

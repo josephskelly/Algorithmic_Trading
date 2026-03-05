@@ -1,5 +1,6 @@
 """Main entry point: daily trading loop orchestration."""
 
+import argparse
 import asyncio
 import logging
 import sys
@@ -35,13 +36,21 @@ logger = logging.getLogger(__name__)
 # Daily execution
 # ---------------------------------------------------------------------------
 
-async def run_daily(market_close: datetime) -> None:
+async def run_daily(
+    market_close: datetime,
+    dry_run: bool = False,
+    skip_traded_today: bool = False,
+) -> None:
     """Execute the trading strategy for today.
 
     Called once per trading day at 5 minutes before market close.
+    When *dry_run* is True, orders are validated but not placed.
+    When *skip_traded_today* is True, the traded-today guard is bypassed.
     """
     date_str = market_close.strftime("%Y-%m-%d")
     logger.info("=== Trading run for %s ===", date_str)
+    if dry_run:
+        logger.info("DRY RUN MODE — orders will be validated but not placed")
 
     # --- Connect + fetch pre-trade data (with retry) ---
     session = None
@@ -108,9 +117,13 @@ async def run_daily(market_close: datetime) -> None:
                 return
 
     # --- Traded-today set ---
-    traded = om.load_traded_today(date_str)
-    if traded:
-        logger.info("Already traded today: %s", traded)
+    if skip_traded_today:
+        traded: set[str] = set()
+        logger.info("Traded-today guard bypassed (on-demand mode)")
+    else:
+        traded = om.load_traded_today(date_str)
+        if traded:
+            logger.info("Already traded today: %s", traded)
 
     # --- Process each ETF ---
     for symbol in symbols:
@@ -132,6 +145,7 @@ async def run_daily(market_close: datetime) -> None:
         try:
             spent = await om.execute_trade(
                 session, account, decision, pc, cash_available, fractional,
+                dry_run=dry_run,
             )
         except TastytradeError as exc:
             logger.error("%s: order failed: %s", symbol, exc)
@@ -150,6 +164,7 @@ async def run_daily(market_close: datetime) -> None:
             try:
                 spent = await om.execute_trade(
                     session, account, decision, pc, cash_available, fractional,
+                    dry_run=dry_run,
                 )
             except Exception as retry_exc:
                 logger.error("%s: retry failed after reconnect: %s — skip", symbol, retry_exc)
@@ -247,7 +262,7 @@ async def main() -> None:
 
         # Execute
         try:
-            await run_daily(market_close)
+            await run_daily(market_close, dry_run=config.DRY_RUN)
         except RuntimeError as exc:
             # Fatal: account/credential issues won't self-resolve overnight
             logger.error("Fatal error in daily run: %s", exc)
@@ -259,5 +274,47 @@ async def main() -> None:
         await asyncio.sleep(600)
 
 
+async def run_now(dry_run: bool = False) -> None:
+    """Execute the strategy immediately, bypassing the scheduler.
+
+    Used for on-demand testing in sandbox mode.  Ignores the traded-today
+    guard so the run can be repeated without clearing state.
+    """
+    logger.info("On-demand execution requested")
+    await preflight_check()
+
+    now = datetime.now(scheduler.ET)
+
+    # Use real close time on trading days; synthetic close on non-trading days
+    # so the reconnect guard doesn't interfere.
+    if scheduler.is_trading_day(now):
+        try:
+            market_close = scheduler.get_market_close(now)
+        except ValueError:
+            market_close = now + timedelta(minutes=10)
+    else:
+        market_close = now + timedelta(minutes=10)
+        logger.info("Not a trading day — using synthetic market close")
+
+    await run_daily(market_close, dry_run=dry_run, skip_traded_today=True)
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(
+        description="Algorithmic trading strategy (sandbox only)",
+    )
+    parser.add_argument(
+        "--now", action="store_true",
+        help="Execute immediately, skip scheduler",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Validate orders without placing them",
+    )
+    args = parser.parse_args()
+
+    if args.now:
+        asyncio.run(run_now(dry_run=args.dry_run))
+    else:
+        config.DRY_RUN = args.dry_run
+        asyncio.run(main())
