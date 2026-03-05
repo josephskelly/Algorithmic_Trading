@@ -20,6 +20,7 @@ ETF_CSV_PATH = BASE_DIR / "ETFs.csv"
 TASTYTRADE_PROVIDER_SECRET = os.getenv("TASTYTRADE_PROVIDER_SECRET", "")
 TASTYTRADE_REFRESH_TOKEN = os.getenv("TASTYTRADE_REFRESH_TOKEN", "")
 SANDBOX = True  # Always True — we never trade with real money
+DRY_RUN = False  # Overridden by --dry-run CLI flag
 
 
 def validate_credentials() -> None:

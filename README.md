@@ -181,6 +181,25 @@ The script runs continuously:
 - Executes the strategy for all ETFs in `ETFs.csv`
 - Sleeps until the next trading day
 
+### On-Demand Execution (Testing)
+
+You can trigger the strategy immediately without waiting for the scheduled time:
+
+```bash
+# Execute now and place real sandbox orders
+python main.py --now
+
+# Execute now but only validate orders (no placement)
+python main.py --now --dry-run
+```
+
+| Flag | Effect |
+|---|---|
+| `--now` | Bypass the scheduler and execute immediately. Works on any day including weekends and holidays. Ignores the traded-today guard so you can run repeatedly. |
+| `--dry-run` | Orders are validated by tastytrade but not placed. Can be used with or without `--now`. |
+
+On non-trading days (weekends/holidays), market data may not be available from tastytrade — the script will log warnings and skip ETFs with no price data.
+
 ### Important Notes
 
 - **Sandbox account only.** The `SANDBOX = True` flag in `config.py` ensures the script always connects to `api.cert.tastyworks.com`. Never change this to `False` or use live account credentials.
