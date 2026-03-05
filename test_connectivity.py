@@ -10,17 +10,18 @@ and reports PASS/FAIL with error details to help diagnose 503 or auth issues.
 import asyncio
 import sys
 
+import account as acct
 import config
-from tastytrade import Session
 from tastytrade.account import Account
 
 
 def _check_503(exc: Exception) -> None:
     """Print a hint if the error looks like a 503 service outage."""
     msg = str(exc).lower()
-    if "503" in msg or "service" in msg and "unavailable" in msg:
+    if "503" in msg or ("service" in msg and "unavailable" in msg):
         print("  HINT: 503 typically means the tastytrade sandbox is temporarily down.")
         print("  Wait a few minutes and try again.")
+        print("  If persistent, verify User-Agent header is set in account.py.")
 
 
 async def run_checks() -> bool:
@@ -41,11 +42,7 @@ async def run_checks() -> bool:
     # Step 2: Session creation
     print("[2/4] Creating tastytrade session (sandbox)...")
     try:
-        session = Session(
-            provider_secret=config.TASTYTRADE_PROVIDER_SECRET,
-            refresh_token=config.TASTYTRADE_REFRESH_TOKEN,
-            is_test=True,
-        )
+        session = await acct.create_session()
         print("  PASS — session created")
         passed += 1
     except Exception as exc:

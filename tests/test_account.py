@@ -121,6 +121,13 @@ async def test_create_session_sandbox():
     assert session.is_test is True
 
 
+async def test_create_session_sets_user_agent():
+    session = await acct.create_session()
+    ua = session._client.headers.get("User-Agent", "")
+    assert "algorithmic-trading/" in ua
+    assert "tastytrade-sdk/" in ua
+
+
 async def test_get_account_returns_first():
     session = Session()
     account = await acct.get_account(session)
