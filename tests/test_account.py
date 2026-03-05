@@ -162,6 +162,24 @@ async def test_get_account_none_exist():
             await acct.get_account(session)
 
 
+async def test_fractional_eligible_none_treated_as_true():
+    """Sandbox API returns None for is_fractional_quantity_eligible; treat as eligible."""
+    session = Session()
+    eq = Equity(symbol="SPY", is_fractional_quantity_eligible=None)
+    with patch.object(Equity, "get", new_callable=AsyncMock, return_value=eq):
+        result = await acct.is_fractional_eligible(session, "SPY")
+    assert result is True
+
+
+async def test_fractional_eligible_false_stays_false():
+    """Explicitly False means not eligible."""
+    session = Session()
+    eq = Equity(symbol="SPY", is_fractional_quantity_eligible=False)
+    with patch.object(Equity, "get", new_callable=AsyncMock, return_value=eq):
+        result = await acct.is_fractional_eligible(session, "SPY")
+    assert result is False
+
+
 async def test_place_notional_buy_negative_value(mock_session, mock_account):
     """Buy orders should pass a negative signed_value to the SDK."""
     with patch.object(mock_account, "place_order", new_callable=AsyncMock, return_value=PlacedOrderResponse()) as mock_place:

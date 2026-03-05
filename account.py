@@ -108,7 +108,7 @@ async def is_fractional_eligible(session: Session, symbol: str) -> bool:
     Returns True if the instrument's is-fractional-quantity-eligible flag is set.
     """
     equity = await Equity.get(session, symbol)
-    eligible = equity.is_fractional_quantity_eligible or False
+    eligible = equity.is_fractional_quantity_eligible is not False
     logger.debug("%s fractional eligible: %s", symbol, eligible)
     return eligible
 

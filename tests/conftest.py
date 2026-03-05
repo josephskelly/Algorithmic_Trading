@@ -103,7 +103,7 @@ class AccountBalance:
 @dataclass
 class Equity:
     symbol: str = "SPY"
-    is_fractional_quantity_eligible: bool = True
+    is_fractional_quantity_eligible: bool | None = True
 
     @classmethod
     async def get(cls, session, symbols):

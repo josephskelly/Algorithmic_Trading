@@ -75,9 +75,12 @@ async def run_daily(
             if not isinstance(equities, list):
                 equities = [equities]
             eligible_map: dict[str, bool] = {
-                eq.symbol: bool(eq.is_fractional_quantity_eligible)
+                eq.symbol: eq.is_fractional_quantity_eligible is not False
                 for eq in equities
             }
+            ineligible = [s for s, e in eligible_map.items() if not e]
+            if ineligible:
+                logger.info("ETFs not fractional-eligible: %s", ineligible)
 
             # Market data (separate retry with exponential backoff)
             price_changes = None
