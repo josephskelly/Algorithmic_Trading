@@ -16,6 +16,7 @@ import scheduler
 from strategy import TradeDirection, compute_trade
 
 PRETRADE_FETCH_ATTEMPTS = 6
+MARKET_DATA_ATTEMPTS = 6
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -67,8 +68,26 @@ async def run_daily(market_close: datetime) -> None:
                 for eq in equities
             }
 
-            # Market data
-            price_changes = await md.fetch_price_changes(session, symbols)
+            # Market data (separate retry with exponential backoff)
+            price_changes = None
+            md_delay = 5
+            for md_attempt in range(1, MARKET_DATA_ATTEMPTS + 1):
+                try:
+                    price_changes = await md.fetch_price_changes(session, symbols)
+                    break
+                except Exception as md_exc:
+                    logger.warning(
+                        "Market data fetch failed (attempt %d/%d): %s",
+                        md_attempt, MARKET_DATA_ATTEMPTS, md_exc,
+                    )
+                    if md_attempt == MARKET_DATA_ATTEMPTS:
+                        raise  # Let outer loop handle final failure
+                    now_md = datetime.now(market_close.tzinfo)
+                    if now_md >= market_close:
+                        raise  # Let outer loop handle close-time abort
+                    await asyncio.sleep(md_delay)
+                    md_delay = min(md_delay * 2, 60)  # 5s, 10s, 20s, 40s, 60s
+
             break  # All pre-trade data fetched successfully
         except Exception as exc:
             logger.error(
