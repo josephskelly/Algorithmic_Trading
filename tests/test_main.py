@@ -165,6 +165,9 @@ async def test_order_rejection_keywords(monkeypatch):
     assert not _is_order_rejection(TastytradeError("503"))
     assert not _is_order_rejection(TastytradeError("connection refused"))
     assert not _is_order_rejection(TastytradeError("timeout"))
+    assert not _is_order_rejection(TastytradeError(
+        "Couldn't parse response: <html><head><title>503 Service Temporarily Unavailable</title></head></html>"
+    ))
 
 
 async def test_reconnect_on_tastytrade_error(monkeypatch):

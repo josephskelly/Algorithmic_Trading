@@ -21,7 +21,7 @@ MARKET_DATA_ATTEMPTS = 6
 
 # Order-rejection error substrings — reconnecting won't help with these.
 _ORDER_REJECTION_KEYWORDS = [
-    "unavailable",
+    "order_unavailable",
     "insufficient",
     "not_allowed",
     "invalid",
