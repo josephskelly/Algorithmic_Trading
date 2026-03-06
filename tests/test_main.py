@@ -119,6 +119,50 @@ async def test_skips_no_price_data(monkeypatch):
     assert mock_exec.call_count == 1
 
 
+async def test_order_rejection_skips_without_reconnect(monkeypatch):
+    """Order validation errors skip the ETF without triggering reconnect."""
+    market_close = datetime(2024, 12, 2, 16, 0, tzinfo=ET)
+    symbols = ["DIG", "ROM"]
+    monkeypatch.setattr("config.ETFS", symbols)
+
+    equities = [Equity(symbol=s) for s in symbols]
+    price_changes = _make_price_changes(symbols)
+    balances = _make_balances()
+
+    with patch("main.acct.create_session", new_callable=AsyncMock, return_value=_make_session()), \
+         patch("main.acct.get_account", new_callable=AsyncMock, return_value=_make_account()), \
+         patch("main.acct.get_balances", new_callable=AsyncMock, return_value=balances), \
+         patch("main.Equity.get", new_callable=AsyncMock, return_value=equities), \
+         patch("main.md.fetch_price_changes", new_callable=AsyncMock, return_value=price_changes), \
+         patch("main.om.load_traded_today", return_value=set()), \
+         patch("main.om.execute_trade", new_callable=AsyncMock, side_effect=[
+             TastytradeError("opening_market_order_unavailable: Opening market orders not allowed when market closed."),
+             Decimal("165"),
+         ]) as mock_exec, \
+         patch("main.om.reconnect", new_callable=AsyncMock) as mock_reconnect, \
+         patch("main.om.mark_traded") as mock_mark:
+        await main.run_daily(market_close)
+    # DIG rejected, ROM succeeds — reconnect should NOT be called
+    assert mock_exec.call_count == 2
+    mock_reconnect.assert_not_called()
+    mock_mark.assert_called_once()
+
+
+async def test_order_rejection_keywords(monkeypatch):
+    """Various order rejection keywords are recognized."""
+    from main import _is_order_rejection
+    assert _is_order_rejection(TastytradeError("opening_market_order_unavailable"))
+    assert _is_order_rejection(TastytradeError("insufficient_funds"))
+    assert _is_order_rejection(TastytradeError("order_rejected"))
+    assert _is_order_rejection(TastytradeError("invalid_order_type"))
+    assert _is_order_rejection(TastytradeError("not_allowed"))
+    # Connection-like errors should NOT be classified as rejections
+    assert not _is_order_rejection(TastytradeError("fail"))
+    assert not _is_order_rejection(TastytradeError("503"))
+    assert not _is_order_rejection(TastytradeError("connection refused"))
+    assert not _is_order_rejection(TastytradeError("timeout"))
+
+
 async def test_reconnect_on_tastytrade_error(monkeypatch):
     """TastytradeError triggers reconnect flow."""
     market_close = datetime(2024, 12, 2, 16, 0, tzinfo=ET)
