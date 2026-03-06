@@ -16,6 +16,7 @@ Using the tastytrade API and a sandbox account (paper trading only), we will exe
     - The only limit is the amount of cash available for trading that day in the account. Skip the trade if would result in a negative cash balance.
     - Sell proceeds settle T+1 and are not available for same-day buys. Only buy orders reduce the cash balance used for same-day guards.
     - Maximum one trade per ETF per day. Skip the trade if an order has already been placed for that ETF today.
+    - Sells require a position. At the start of each run, query the account's open positions. If no position is held for an ETF, skip the sell. If the computed sell amount exceeds the value of shares held (quantity × current price), cap it to the position value. This prevents selling shares you don't own — the strategy is buy-on-dip / sell-on-rise, so sells only make sense against previously accumulated positions.
 - Connection recovery: if the connection to the tastytrade API drops during the trading window:
     - Attempt to reconnect up to 3 times with 5-second gaps between attempts.
     - If all reconnect attempts fail, log the error and abort for the day.
@@ -46,6 +47,7 @@ Update the CLAUDE.md whenever relevant.
 - [x] Clarify fractional shares handling — tastytrade supports fractional shares for some ETFs but not all; define behavior for unsupported ETFs. **Resolved: check `is-fractional-quantity-eligible` flag at runtime; use `NOTIONAL_MARKET` orders for eligible ETFs; skip buy if not eligible; floor to whole shares for sells if not eligible.**
 - [x] Clarify sell sizing — selling a dollar amount requires converting to shares at current price; define how to handle rounding to whole shares and any residual. **Resolved: for eligible ETFs use a single `NOTIONAL_MARKET` order for the Trade Amount (both buys and sells); if not eligible on a sell, floor to whole shares; skip if result is 0 shares.**
 - [x] Add connection recovery logic — define reconnect behavior if the tastytrade API connection drops during the trading window. **Resolved: retry up to 3 times with 5s gaps; abort if all fail or past market close; query TastyTrade after reconnect to rebuild traded-today set; skip ambiguous-state ETFs.**
+- [x] Add position guard for sells — strategy was issuing sell orders for ETFs with no held position (e.g. ROM sell on a 0.40% rise with zero shares held). **Resolved: query positions at run start; skip sell if no position; cap sell amount to position value.**
 - [ ] Verify all 11 ETFs in ETFs.csv are `is-fractional-quantity-eligible` on tastytrade before relying on `NOTIONAL_MARKET` orders.
 - [ ] Confirm `NOTIONAL_MARKET` sell behavior in sandbox testing once implementation is complete.
 - [x] Add `.env.example` to the repo as a credential template for new users. **Resolved.**

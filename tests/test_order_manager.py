@@ -103,7 +103,7 @@ async def test_buy_fractional():
     decision = _make_decision(TradeDirection.BUY, "165")
     price_info = _make_price_info()
     with patch("account.place_notional_order", new_callable=AsyncMock, return_value=PlacedOrderResponse()):
-        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), True)
+        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), True, {})
     assert result == Decimal("165")
 
 
@@ -111,7 +111,7 @@ async def test_buy_exceeds_cash():
     decision = _make_decision(TradeDirection.BUY, "500")
     price_info = _make_price_info()
     with patch("account.place_notional_order", new_callable=AsyncMock) as mock_place:
-        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("100"), True)
+        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("100"), True, {})
     assert result is None
     mock_place.assert_not_called()
 
@@ -121,7 +121,7 @@ async def test_buy_not_fractional():
     decision = _make_decision(TradeDirection.BUY, "165")
     price_info = _make_price_info()
     with patch("account.place_share_order", new_callable=AsyncMock, return_value=PlacedOrderResponse()):
-        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), False)
+        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), False, {})
     assert result == Decimal("3") * Decimal("50")
 
 
@@ -130,7 +130,7 @@ async def test_buy_not_fractional_zero_shares():
     decision = _make_decision(TradeDirection.BUY, "30")
     price_info = _make_price_info(current="50")
     with patch("account.place_share_order", new_callable=AsyncMock) as mock_place:
-        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), False)
+        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), False, {})
     assert result is None
     mock_place.assert_not_called()
 
@@ -141,7 +141,7 @@ async def test_buy_notional_fallback():
     price_info = _make_price_info()
     with patch("account.place_notional_order", new_callable=AsyncMock, side_effect=Exception("fractional_equity_trading_not_supported")), \
          patch("account.place_share_order", new_callable=AsyncMock, return_value=PlacedOrderResponse()) as mock_share:
-        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), True)
+        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), True, {})
     assert result == Decimal("3") * Decimal("50")
     mock_share.assert_called_once()
 
@@ -150,9 +150,10 @@ async def test_sell_notional_fallback():
     # Notional fails with fractional error -> falls back to whole shares
     decision = _make_decision(TradeDirection.SELL, "150")
     price_info = _make_price_info(current="50")
+    positions = {"DIG": Decimal("100")}  # hold enough to sell
     with patch("account.place_notional_order", new_callable=AsyncMock, side_effect=Exception("fractional_equity_trading_not_supported")), \
          patch("account.place_share_order", new_callable=AsyncMock, return_value=PlacedOrderResponse()) as mock_share:
-        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), True)
+        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), True, positions)
     assert result == Decimal("3") * Decimal("50")
     mock_share.assert_called_once()
 
@@ -163,14 +164,15 @@ async def test_buy_notional_non_fractional_error_raises():
     price_info = _make_price_info()
     with patch("account.place_notional_order", new_callable=AsyncMock, side_effect=Exception("network timeout")), \
          pytest.raises(Exception, match="network timeout"):
-        await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), True)
+        await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), True, {})
 
 
 async def test_sell_fractional():
     decision = _make_decision(TradeDirection.SELL, "165")
     price_info = _make_price_info()
+    positions = {"DIG": Decimal("100")}
     with patch("account.place_notional_order", new_callable=AsyncMock, return_value=PlacedOrderResponse()):
-        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), True)
+        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), True, positions)
     assert result == Decimal("165")
 
 
@@ -178,8 +180,9 @@ async def test_sell_non_frac_whole_shares():
     # $150 / $50 = 3 shares
     decision = _make_decision(TradeDirection.SELL, "150")
     price_info = _make_price_info(current="50")
+    positions = {"DIG": Decimal("100")}
     with patch("account.place_share_order", new_callable=AsyncMock, return_value=PlacedOrderResponse()):
-        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), False)
+        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), False, positions)
     assert result == Decimal("3") * Decimal("50")
 
 
@@ -187,10 +190,31 @@ async def test_sell_non_frac_zero_shares():
     # $30 / $50 = 0.6 -> floor = 0 shares -> skip
     decision = _make_decision(TradeDirection.SELL, "30")
     price_info = _make_price_info(current="50")
+    positions = {"DIG": Decimal("100")}
     with patch("account.place_share_order", new_callable=AsyncMock) as mock_place:
-        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), False)
+        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), False, positions)
     assert result is None
     mock_place.assert_not_called()
+
+
+async def test_sell_no_position():
+    # No position held -> skip sell
+    decision = _make_decision(TradeDirection.SELL, "165")
+    price_info = _make_price_info()
+    with patch("account.place_notional_order", new_callable=AsyncMock) as mock_place:
+        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), True, {})
+    assert result is None
+    mock_place.assert_not_called()
+
+
+async def test_sell_capped_to_position_value():
+    # Hold 2 shares at $50 = $100 value, but want to sell $165 -> capped to $100
+    decision = _make_decision(TradeDirection.SELL, "165")
+    price_info = _make_price_info(current="50")
+    positions = {"DIG": Decimal("2")}
+    with patch("account.place_notional_order", new_callable=AsyncMock, return_value=PlacedOrderResponse()):
+        result = await om.execute_trade(Session(), Account(), decision, price_info, Decimal("10000"), True, positions)
+    assert result == Decimal("100")  # 2 shares * $50
 
 
 # ===================================================================

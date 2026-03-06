@@ -64,6 +64,7 @@ async def test_run_daily_happy_path(monkeypatch):
     with patch("main.acct.create_session", new_callable=AsyncMock, return_value=_make_session()), \
          patch("main.acct.get_account", new_callable=AsyncMock, return_value=_make_account()), \
          patch("main.acct.get_balances", new_callable=AsyncMock, return_value=balances), \
+         patch("main.acct.get_positions", new_callable=AsyncMock, return_value={}), \
          patch("main.Equity.get", new_callable=AsyncMock, return_value=equities), \
          patch("main.md.fetch_price_changes", new_callable=AsyncMock, return_value=price_changes), \
          patch("main.om.load_traded_today", return_value=set()), \
@@ -86,6 +87,7 @@ async def test_skips_already_traded(monkeypatch):
     with patch("main.acct.create_session", new_callable=AsyncMock, return_value=_make_session()), \
          patch("main.acct.get_account", new_callable=AsyncMock, return_value=_make_account()), \
          patch("main.acct.get_balances", new_callable=AsyncMock, return_value=balances), \
+         patch("main.acct.get_positions", new_callable=AsyncMock, return_value={}), \
          patch("main.Equity.get", new_callable=AsyncMock, return_value=equities), \
          patch("main.md.fetch_price_changes", new_callable=AsyncMock, return_value=price_changes), \
          patch("main.om.load_traded_today", return_value={"DIG"}), \
@@ -110,6 +112,7 @@ async def test_skips_no_price_data(monkeypatch):
     with patch("main.acct.create_session", new_callable=AsyncMock, return_value=_make_session()), \
          patch("main.acct.get_account", new_callable=AsyncMock, return_value=_make_account()), \
          patch("main.acct.get_balances", new_callable=AsyncMock, return_value=balances), \
+         patch("main.acct.get_positions", new_callable=AsyncMock, return_value={}), \
          patch("main.Equity.get", new_callable=AsyncMock, return_value=equities), \
          patch("main.md.fetch_price_changes", new_callable=AsyncMock, return_value=price_changes), \
          patch("main.om.load_traded_today", return_value=set()), \
@@ -132,6 +135,7 @@ async def test_order_rejection_skips_without_reconnect(monkeypatch):
     with patch("main.acct.create_session", new_callable=AsyncMock, return_value=_make_session()), \
          patch("main.acct.get_account", new_callable=AsyncMock, return_value=_make_account()), \
          patch("main.acct.get_balances", new_callable=AsyncMock, return_value=balances), \
+         patch("main.acct.get_positions", new_callable=AsyncMock, return_value={}), \
          patch("main.Equity.get", new_callable=AsyncMock, return_value=equities), \
          patch("main.md.fetch_price_changes", new_callable=AsyncMock, return_value=price_changes), \
          patch("main.om.load_traded_today", return_value=set()), \
@@ -176,6 +180,7 @@ async def test_reconnect_on_tastytrade_error(monkeypatch):
     with patch("main.acct.create_session", new_callable=AsyncMock, return_value=_make_session()), \
          patch("main.acct.get_account", new_callable=AsyncMock, return_value=_make_account()), \
          patch("main.acct.get_balances", new_callable=AsyncMock, return_value=balances), \
+         patch("main.acct.get_positions", new_callable=AsyncMock, return_value={}), \
          patch("main.Equity.get", new_callable=AsyncMock, return_value=equities), \
          patch("main.md.fetch_price_changes", new_callable=AsyncMock, return_value=price_changes), \
          patch("main.om.load_traded_today", return_value=set()), \
@@ -253,6 +258,7 @@ async def test_pretrade_retry_succeeds_on_second_attempt(monkeypatch):
     with patch("main.acct.create_session", new_callable=AsyncMock, return_value=_make_session()), \
          patch("main.acct.get_account", new_callable=AsyncMock, return_value=_make_account()), \
          patch("main.acct.get_balances", new_callable=AsyncMock, return_value=balances), \
+         patch("main.acct.get_positions", new_callable=AsyncMock, return_value={}), \
          patch("main.Equity.get", new_callable=AsyncMock, return_value=equities), \
          patch("main.md.fetch_price_changes", mock_fetch), \
          patch("main.om.load_traded_today", return_value=set()), \
@@ -286,6 +292,7 @@ async def test_market_data_inner_retry_backoff(monkeypatch):
     with patch("main.acct.create_session", new_callable=AsyncMock, return_value=_make_session()), \
          patch("main.acct.get_account", new_callable=AsyncMock, return_value=_make_account()), \
          patch("main.acct.get_balances", new_callable=AsyncMock, return_value=balances), \
+         patch("main.acct.get_positions", new_callable=AsyncMock, return_value={}), \
          patch("main.Equity.get", new_callable=AsyncMock, return_value=equities), \
          patch("main.md.fetch_price_changes", mock_fetch), \
          patch("main.om.load_traded_today", return_value=set()), \
@@ -313,6 +320,7 @@ async def test_pretrade_retry_all_attempts_fail(monkeypatch):
     with patch("main.acct.create_session", new_callable=AsyncMock, return_value=_make_session()), \
          patch("main.acct.get_account", new_callable=AsyncMock, return_value=_make_account()), \
          patch("main.acct.get_balances", new_callable=AsyncMock, return_value=_make_balances()), \
+         patch("main.acct.get_positions", new_callable=AsyncMock, return_value={}), \
          patch("main.Equity.get", new_callable=AsyncMock, return_value=[Equity(symbol="DIG")]), \
          patch("main.md.fetch_price_changes", mock_fetch), \
          patch("main.om.load_traded_today", return_value=set()), \
@@ -339,6 +347,7 @@ async def test_pretrade_retry_aborts_past_market_close(monkeypatch):
     with patch("main.acct.create_session", new_callable=AsyncMock, return_value=_make_session()), \
          patch("main.acct.get_account", new_callable=AsyncMock, return_value=_make_account()), \
          patch("main.acct.get_balances", new_callable=AsyncMock, return_value=_make_balances()), \
+         patch("main.acct.get_positions", new_callable=AsyncMock, return_value={}), \
          patch("main.Equity.get", new_callable=AsyncMock, return_value=[Equity(symbol="DIG")]), \
          patch("main.md.fetch_price_changes", mock_fetch), \
          patch("main.om.load_traded_today", return_value=set()), \
@@ -364,6 +373,7 @@ async def test_abort_on_failed_reconnect(monkeypatch):
     with patch("main.acct.create_session", new_callable=AsyncMock, return_value=_make_session()), \
          patch("main.acct.get_account", new_callable=AsyncMock, return_value=_make_account()), \
          patch("main.acct.get_balances", new_callable=AsyncMock, return_value=balances), \
+         patch("main.acct.get_positions", new_callable=AsyncMock, return_value={}), \
          patch("main.Equity.get", new_callable=AsyncMock, return_value=equities), \
          patch("main.md.fetch_price_changes", new_callable=AsyncMock, return_value=price_changes), \
          patch("main.om.load_traded_today", return_value=set()), \

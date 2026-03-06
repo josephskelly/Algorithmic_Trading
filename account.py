@@ -98,6 +98,16 @@ async def get_cash_balance(session: Session, account: Account) -> Decimal:
     return balances.cash_balance
 
 
+async def get_positions(session: Session, account: Account) -> dict[str, Decimal]:
+    """Return a map of symbol → quantity for all open equity positions."""
+    positions = await account.get_positions(session)
+    result: dict[str, Decimal] = {}
+    for pos in positions:
+        if pos.instrument_type == InstrumentType.EQUITY and pos.quantity:
+            result[pos.symbol] = pos.quantity
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Instrument lookup
 # ---------------------------------------------------------------------------

@@ -84,6 +84,11 @@ async def run_daily(
             logger.info("Net liquidation value: $%.2f", net_liq)
             logger.info("Cash available: $%.2f", cash_available)
 
+            # Current positions (for sell guards)
+            positions = await acct.get_positions(session, account)
+            if positions:
+                logger.info("Open positions: %s", {s: float(q) for s, q in positions.items()})
+
             # Fractional eligibility (batch lookup)
             symbols = config.ETFS
             equities = await Equity.get(session, symbols)
@@ -165,7 +170,7 @@ async def run_daily(
         try:
             spent = await om.execute_trade(
                 session, account, decision, pc, cash_available, fractional,
-                dry_run=dry_run,
+                positions, dry_run=dry_run,
             )
         except TastytradeError as exc:
             logger.error("%s: order failed: %s", symbol, exc)
@@ -187,7 +192,7 @@ async def run_daily(
             try:
                 spent = await om.execute_trade(
                     session, account, decision, pc, cash_available, fractional,
-                    dry_run=dry_run,
+                    positions, dry_run=dry_run,
                 )
             except Exception as retry_exc:
                 logger.error("%s: retry failed after reconnect: %s — skip", symbol, retry_exc)
