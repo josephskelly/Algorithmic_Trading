@@ -112,10 +112,12 @@ Algorithmic_Trading/
 ├── market_data.py     # Batch price fetching, % change computation
 ├── strategy.py        # Trade sizing, direction (buy on drops, sell on rises)
 ├── order_manager.py   # Traded-today tracking, connection recovery, execution
-├── ETFs.csv           # List of 2x leveraged sector ETFs
-├── requirements.txt   # Python dependencies
-├── .env.example       # Credential template (copy to .env)
-└── traded_today.json  # Runtime state (auto-generated, not committed)
+├── seed_positions.py   # Utility: seed initial positions in all ETFs
+├── cancel_orders.py    # Utility: cancel all pending LIVE orders
+├── ETFs.csv            # List of 2x leveraged sector ETFs
+├── requirements.txt    # Python dependencies
+├── .env.example        # Credential template (copy to .env)
+└── traded_today.json   # Runtime state (auto-generated, not committed)
 ```
 
 ## Setup
@@ -199,6 +201,15 @@ python main.py --now --dry-run
 | `--dry-run` | Orders are validated by tastytrade but not placed. Can be used with or without `--now`. |
 
 On non-trading days (weekends/holidays), market data may not be available from tastytrade — the script will log warnings and skip ETFs with no price data.
+
+### Utility Scripts
+
+| Script | Purpose |
+|---|---|
+| `python seed_positions.py --dry-run` | Seed initial positions in all ETFs (assumes 1% drop). Use `--dry-run` to validate first, then re-run without it to place orders. |
+| `python cancel_orders.py` | Cancel all pending LIVE orders in the account. |
+
+**Note:** The tastytrade sandbox does not simulate order fills — MARKET orders stay in LIVE status indefinitely. Use `--dry-run` for validation. These utility scripts are also useful for managing orders in a live account fork.
 
 ### Important Notes
 

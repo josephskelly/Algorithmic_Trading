@@ -53,3 +53,8 @@ Update the CLAUDE.md whenever relevant.
 - [ ] Confirm `NOTIONAL_MARKET` sell behavior in sandbox testing once implementation is complete.
 - [x] Add `.env.example` to the repo as a credential template for new users. **Resolved.**
 - [x] Add Google Cloud deployment instructions to README. **Resolved.**
+
+# Known Sandbox Limitations
+- **Orders do not fill.** The tastytrade sandbox validates and accepts MARKET orders but does not simulate fills. Orders stay in LIVE status indefinitely. Positions never appear and cash balances never change. Dry-run validation (`--dry-run`) is the best available test for order logic.
+- **NOTIONAL_MARKET always rejected.** All NOTIONAL_MARKET (fractional) orders are rejected in sandbox. The fallback to whole-share MARKET orders works, but fractional order behavior cannot be tested.
+- **This repo is sandbox-only.** Live trading should be done in a separate fork with `SANDBOX = False`, live OAuth credentials, a `--live` startup guard, and account number validation.
