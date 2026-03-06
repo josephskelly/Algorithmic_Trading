@@ -195,6 +195,32 @@ async def test_reconnect_on_tastytrade_error(monkeypatch):
     mock_reconnect.assert_called_once()
 
 
+async def test_rebuild_traded_set_failure_aborts_run(monkeypatch):
+    """If rebuild_traded_set fails after reconnect, the run aborts cleanly."""
+    market_close = datetime(2024, 12, 2, 16, 0, tzinfo=ET)
+    symbols = ["DIG", "ROM"]
+    monkeypatch.setattr("config.ETFS", symbols)
+
+    equities = [Equity(symbol=s) for s in symbols]
+    price_changes = _make_price_changes(symbols)
+    balances = _make_balances()
+
+    with patch("main.acct.create_session", new_callable=AsyncMock, return_value=_make_session()), \
+         patch("main.acct.get_account", new_callable=AsyncMock, return_value=_make_account()), \
+         patch("main.acct.get_balances", new_callable=AsyncMock, return_value=balances), \
+         patch("main.acct.get_positions", new_callable=AsyncMock, return_value={}), \
+         patch("main.Equity.get", new_callable=AsyncMock, return_value=equities), \
+         patch("main.md.fetch_price_changes", new_callable=AsyncMock, return_value=price_changes), \
+         patch("main.om.load_traded_today", return_value=set()), \
+         patch("main.om.execute_trade", new_callable=AsyncMock, side_effect=TastytradeError("503")), \
+         patch("main.om.reconnect", new_callable=AsyncMock, return_value=_make_session()), \
+         patch("main.om.rebuild_traded_set", new_callable=AsyncMock, side_effect=TastytradeError("503")), \
+         patch("main.om.mark_traded") as mock_mark:
+        await main.run_daily(market_close)  # Should not crash
+    # Run should abort — no trades marked
+    mock_mark.assert_not_called()
+
+
 # ===================================================================
 # Preflight check
 # ===================================================================

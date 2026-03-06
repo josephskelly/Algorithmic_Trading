@@ -183,8 +183,14 @@ async def run_daily(
                 logger.error("Aborting run — could not reconnect")
                 return
             session = new_session
-            account = await acct.get_account(session)
-            traded = await om.rebuild_traded_set(session, account, date_str)
+            try:
+                account = await acct.get_account(session)
+                traded = await om.rebuild_traded_set(session, account, date_str)
+            except Exception as rebuild_exc:
+                logger.error(
+                    "Post-reconnect rebuild failed: %s — aborting run", rebuild_exc
+                )
+                return
             if symbol in traded:
                 logger.info("%s: confirmed traded after reconnect — skip", symbol)
                 continue
