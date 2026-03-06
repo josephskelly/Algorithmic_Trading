@@ -27,28 +27,7 @@ class PriceChange:
 
 
 # ---------------------------------------------------------------------------
-# REST-based market data (primary)
-# ---------------------------------------------------------------------------
-
-async def _fetch_rest(
-    session: Session, symbols: list[str]
-) -> dict[str, MarketData]:
-    """Fetch market data per symbol via the REST API.
-
-    Returns a dict of symbol → MarketData for every symbol that succeeded.
-    """
-    data_by_symbol: dict[str, MarketData] = {}
-    for symbol in symbols:
-        try:
-            data = await get_market_data(session, symbol, InstrumentType.EQUITY)
-            data_by_symbol[symbol] = data
-        except Exception:
-            logger.warning("REST market data failed for %s", symbol)
-    return data_by_symbol
-
-
-# ---------------------------------------------------------------------------
-# DXLink streamer fallback
+# DXLink streamer (primary)
 # ---------------------------------------------------------------------------
 
 async def _fetch_streamer(
@@ -56,7 +35,8 @@ async def _fetch_streamer(
 ) -> dict[str, PriceChange]:
     """Fetch quotes + previous close via the DXLink WebSocket streamer.
 
-    Used as a fallback when the REST market-data endpoints return 503.
+    Primary data source — streams Quote and Summary events for all symbols
+    over a single WebSocket connection.
     Returns a dict of symbol → PriceChange.
     """
     quotes: dict[str, Quote] = {}
@@ -95,7 +75,12 @@ async def _fetch_streamer(
         q = quotes.get(symbol)
         s = summaries.get(symbol)
         if q is None or s is None:
-            logger.warning("Streamer: incomplete data for %s — skipping", symbol)
+            if q is None and s is None:
+                logger.warning("Streamer: %s missing both Quote and Summary — skipping", symbol)
+            elif q is None:
+                logger.warning("Streamer: %s missing Quote (have Summary) — skipping", symbol)
+            else:
+                logger.warning("Streamer: %s missing Summary (have Quote) — skipping", symbol)
             continue
 
         current = q.mid_price
@@ -124,38 +109,24 @@ async def _fetch_streamer(
 
 
 # ---------------------------------------------------------------------------
-# Public API
+# REST-based market data (fallback)
 # ---------------------------------------------------------------------------
 
-async def fetch_price_changes(
+async def _fetch_rest(
     session: Session, symbols: list[str]
-) -> dict[str, PriceChange]:
-    """Fetch market data for *symbols* and compute % change from previous close.
+) -> dict[str, MarketData]:
+    """Fetch market data per symbol via the REST API.
 
-    Tries the REST market-data endpoint first.  If every symbol fails (e.g.
-    sandbox returns 503 for all), falls back to the DXLink WebSocket streamer.
-
-    Returns a dict keyed by symbol.  Symbols that lack price data are logged
-    and omitted from the result.
+    Returns a dict of symbol → MarketData for every symbol that succeeded.
     """
-    # --- Primary: REST endpoint ---
-    data_by_symbol = await _fetch_rest(session, symbols)
-
-    if data_by_symbol:
-        # At least some REST data came back — use it.
-        return _build_price_changes(data_by_symbol, symbols)
-
-    # --- Fallback: DXLink streamer ---
-    logger.warning(
-        "REST market data returned nothing for all %d symbols — "
-        "falling back to DXLink streamer",
-        len(symbols),
-    )
-    try:
-        return await _fetch_streamer(session, symbols)
-    except Exception as exc:
-        logger.error("DXLink streamer fallback also failed: %s", exc)
-        return {}
+    data_by_symbol: dict[str, MarketData] = {}
+    for symbol in symbols:
+        try:
+            data = await get_market_data(session, symbol, InstrumentType.EQUITY)
+            data_by_symbol[symbol] = data
+        except Exception:
+            logger.warning("REST market data failed for %s", symbol)
+    return data_by_symbol
 
 
 def _build_price_changes(
@@ -194,3 +165,42 @@ def _build_price_changes(
         )
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+async def fetch_price_changes(
+    session: Session, symbols: list[str]
+) -> dict[str, PriceChange]:
+    """Fetch market data for *symbols* and compute % change from previous close.
+
+    Tries the DXLink WebSocket streamer first.  If it fails or returns
+    nothing for all symbols, falls back to the REST market-data endpoint.
+
+    Returns a dict keyed by symbol.  Symbols that lack price data are logged
+    and omitted from the result.
+    """
+    # --- Primary: DXLink streamer ---
+    try:
+        streamer_results = await _fetch_streamer(session, symbols)
+    except Exception as exc:
+        logger.warning("DXLink streamer failed: %s — falling back to REST", exc)
+        streamer_results = {}
+
+    if streamer_results:
+        return streamer_results
+
+    # --- Fallback: REST endpoint ---
+    logger.warning(
+        "DXLink streamer returned no data for all %d symbols — "
+        "falling back to REST endpoint",
+        len(symbols),
+    )
+    data_by_symbol = await _fetch_rest(session, symbols)
+    if data_by_symbol:
+        return _build_price_changes(data_by_symbol, symbols)
+
+    logger.error("REST fallback also returned no data")
+    return {}
