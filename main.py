@@ -19,6 +19,21 @@ from strategy import TradeDirection, compute_trade
 PRETRADE_FETCH_ATTEMPTS = 6
 MARKET_DATA_ATTEMPTS = 6
 
+# Order-rejection error substrings — reconnecting won't help with these.
+_ORDER_REJECTION_KEYWORDS = [
+    "unavailable",
+    "insufficient",
+    "not_allowed",
+    "invalid",
+    "rejected",
+]
+
+
+def _is_order_rejection(exc: TastytradeError) -> bool:
+    """Return True if the error is an order validation rejection, not a connection issue."""
+    msg = str(exc).lower()
+    return any(kw in msg for kw in _ORDER_REJECTION_KEYWORDS)
+
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
@@ -154,7 +169,10 @@ async def run_daily(
             )
         except TastytradeError as exc:
             logger.error("%s: order failed: %s", symbol, exc)
-            # Attempt reconnect
+            if _is_order_rejection(exc):
+                logger.warning("%s: order rejected (not a connection issue) — skip", symbol)
+                continue
+            # Connection-related error — attempt reconnect
             new_session = await om.reconnect(market_close)
             if new_session is None:
                 logger.error("Aborting run — could not reconnect")
