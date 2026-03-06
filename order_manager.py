@@ -129,6 +129,7 @@ async def execute_trade(
     price_info: PriceChange,
     cash_available: Decimal,
     fractional_eligible: bool,
+    positions: dict[str, Decimal],
     dry_run: bool = False,
 ) -> Decimal | None:
     """Execute a single trade based on the strategy decision.
@@ -138,6 +139,21 @@ async def execute_trade(
     """
     symbol = decision.symbol
     amount = decision.dollar_amount
+
+    # --- Position guard (sells only) ---
+    if decision.direction == TradeDirection.SELL:
+        held_qty = positions.get(symbol, Decimal(0))
+        if held_qty <= 0:
+            logger.info("%s: no position held — skip sell", symbol)
+            return None
+        # Cap sell amount to the value of shares held
+        held_value = held_qty * price_info.current_price
+        if amount > held_value:
+            logger.info(
+                "%s: sell amount $%.2f exceeds position value $%.2f — capping",
+                symbol, amount, held_value,
+            )
+            amount = held_value
 
     # --- Cash guard (buys only) ---
     if decision.direction == TradeDirection.BUY and amount > cash_available:
