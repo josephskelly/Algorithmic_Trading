@@ -332,9 +332,9 @@ async def test_market_data_inner_retry_backoff(monkeypatch):
 
     assert mock_fetch.call_count == 4
     assert mock_exec.call_count == 1
-    # Exponential backoff: 5s, 10s, 20s
+    # Exponential backoff: 5s, 10s, 20s (plus 1s order delay after trade)
     sleep_delays = [call.args[0] for call in mock_sleep.call_args_list]
-    assert sleep_delays == [5, 10, 20]
+    assert sleep_delays[:3] == [5, 10, 20]
 
 
 async def test_pretrade_retry_all_attempts_fail(monkeypatch):

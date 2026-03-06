@@ -17,6 +17,7 @@ Using the tastytrade API and a sandbox account (paper trading only), we will exe
     - Sell proceeds settle T+1 and are not available for same-day buys. Only buy orders reduce the cash balance used for same-day guards.
     - Maximum one trade per ETF per day. Skip the trade if an order has already been placed for that ETF today.
     - Sells require a position. At the start of each run, query the account's open positions. If no position is held for an ETF, skip the sell. If the computed sell amount exceeds the value of shares held (quantity × current price), cap it to the position value. This prevents selling shares you don't own — the strategy is buy-on-dip / sell-on-rise, so sells only make sense against previously accumulated positions.
+- Rate limiting: tastytrade's API (especially the sandbox) returns 503 errors when orders are fired in rapid succession. A 1-second delay is inserted between each order placement to stay under the rate limit.
 - Connection recovery: if the connection to the tastytrade API drops during the trading window:
     - Attempt to reconnect up to 3 times with 5-second gaps between attempts.
     - If all reconnect attempts fail, log the error and abort for the day.

@@ -18,6 +18,7 @@ from strategy import TradeDirection, compute_trade
 
 PRETRADE_FETCH_ATTEMPTS = 6
 MARKET_DATA_ATTEMPTS = 6
+ORDER_DELAY = 1  # seconds between orders to avoid tastytrade rate limiting
 
 # Order-rejection error substrings — reconnecting won't help with these.
 _ORDER_REJECTION_KEYWORDS = [
@@ -215,6 +216,7 @@ async def run_daily(
                 "%s: trade executed ($%.2f)  cash remaining: $%.2f",
                 symbol, spent, cash_available,
             )
+            await asyncio.sleep(ORDER_DELAY)
 
     logger.info("=== Trading run complete for %s ===", date_str)
 
